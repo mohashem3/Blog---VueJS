@@ -1,0 +1,6 @@
+@import './base.css';
+@import 'bootstrap';
+
+body {
+  overflow-x: hidden;
+}
