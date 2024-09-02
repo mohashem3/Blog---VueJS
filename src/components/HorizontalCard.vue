@@ -2,11 +2,23 @@
   <div class="container">
     <!-- Header and Buttons -->
     <div class="header-container">
+      <h2 class="header">{{ latestPostsTitle }}</h2>
+    </div>
+
+    <div class="header-container">
       <button class="filter-posts-button my-post-button" @click="togglePostsFilter">
         <img :src="myPostIcon" alt="My Posts Icon" class="button-icon" />
         {{ filterButtonWithCount }}
       </button>
-      <h2 class="header">{{ headerTitle }}</h2>
+
+      <input
+        v-model="searchTerm"
+        type="text"
+        placeholder="Search articles..."
+        class="search-input"
+        @input="handleSearchChange"
+      />
+
       <button class="new-post-button" @click="openAddPostPopup">
         <img :src="addIcon" alt="Add Post Icon" class="button-icon" />
         New Post
@@ -14,13 +26,13 @@
     </div>
 
     <!-- Article Cards -->
-    <div v-for="article in paginatedArticles" :key="article.slug" class="article-card">
-      <div class="article-card__img">
-        <img src="../assets/img/blogging.jpg" alt="Article Image" />
+    <div v-for="article in filteredArticles" :key="article.slug" class="article-card">
+      <div class="article-card__img" @click="viewArticle(article.slug)">
+        <img :src="article.image" alt="Article Image" />
       </div>
       <div class="article-card__content">
-        <h3 class="article-card__title">{{ article.title }}</h3>
-        <p class="article-card__text">{{ article.content }}</p>
+        <h3 class="article-card__title" @click="viewArticle(article.slug)">{{ article.title }}</h3>
+        <p class="article-card__text" @click="viewArticle(article.slug)">{{ article.content }}</p>
         <div class="user">
           <span class="material-symbols-outlined"> account_circle </span>
           <span class="article-card__author">{{ article.author }}</span>
@@ -28,7 +40,7 @@
         <div class="post-actions">
           <img
             v-if="isPostOwner(article.authorId)"
-            @click="openEditPostPopup(article.slug)"
+            @click.stop="openEditPostPopup(article.slug)"
             width="18"
             height="18"
             src="https://img.icons8.com/metro/26/000000/edit.png"
@@ -37,7 +49,7 @@
           />
           <img
             v-if="isPostOwner(article.authorId)"
-            @click="deletePost(article.slug)"
+            @click.stop="deletePost(article.slug)"
             width="21"
             height="21"
             src="https://img.icons8.com/windows/32/000000/trash.png"
@@ -51,22 +63,37 @@
             alt="Comment Icon"
             class="comment-icon"
           />
+          <span class="comments-count">{{ article.commentsCount }}</span>
         </div>
+
+        <!-- Separator Line -->
+        <hr class="separator-line" />
+
+        <!-- Latest Comment Section -->
+        <div class="latest-comment" v-if="article.lastComment">
+          <p class="latest-comment__text">{{ article.lastComment }}</p>
+        </div>
+      </div>
+      <!-- View More Button -->
+      <div class="view-more">
+        <button @click="viewArticle(article.slug)" class="view-more-button">View More</button>
       </div>
     </div>
 
     <!-- Pagination Controls -->
     <div class="pagination">
-      <a href="#" @click.prevent="prevPage">&laquo;</a>
+      <a href="#" v-if="pagination.prev" @click.prevent="fetchArticles(pagination.prev)">
+        Previous
+      </a>
       <a
-        v-for="page in totalPages"
-        :key="page"
-        :class="{ active: page === currentPage }"
+        v-for="page in pagination.pages"
+        :key="page.number"
+        :class="{ active: page.isActive }"
         href="#"
-        @click.prevent="goToPage(page)"
-        >{{ page }}</a
+        @click.prevent="fetchArticles(page.url)"
+        >{{ page.label }}</a
       >
-      <a href="#" @click.prevent="nextPage">&raquo;</a>
+      <a href="#" v-if="pagination.next" @click.prevent="fetchArticles(pagination.next)"> Next </a>
     </div>
 
     <!-- AddPost Popup -->
@@ -75,21 +102,19 @@
       :postData="currentPost"
       :mode="mode"
       @update:showPopup="showAddPostPopup = $event"
-      @post-added="fetchArticles"
+    />
+
+    <!-- CommentSection Popup -->
+    <CommentSection
+      :isOpen="isCommentSectionOpen"
+      :slug="activeSlug"
+      @close="closeCommentSection"
     />
   </div>
-
-  <!-- CommentSection Sidebar -->
-  <CommentSection
-    v-if="isCommentSectionOpen"
-    :slug="activeSlug"
-    :isOpen="isCommentSectionOpen"
-    @close="closeCommentSection"
-  />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import axios from 'axios'
 import Swal from 'sweetalert2'
 import AddPost from '../components/AddPost.vue'
@@ -97,6 +122,13 @@ import addIcon from '../assets/img/add-icon.svg'
 import myPostIcon from '../assets/img/myposts-icon.svg'
 import commentIcon from '../assets/img/comment-icon.svg'
 import CommentSection from './CommentSection.vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+const viewArticle = (slug: string) => {
+  router.push({ name: 'BlogView', params: { slug } })
+}
 
 const props = defineProps({
   showOnlyMyBlogs: {
@@ -108,16 +140,22 @@ const props = defineProps({
 const articles = ref([])
 const currentPost = ref(null)
 const currentPage = ref(1)
-const articlesPerPage = 10
-const totalPages = computed(() => Math.ceil(articles.value.length / articlesPerPage))
-
+const articlesPerPage = 15
+const pagination = ref({
+  prev: null,
+  next: null,
+  pages: []
+})
 const currentUserId = ref('')
 const showAddPostPopup = ref(false)
 const mode = ref<'add' | 'edit'>('add')
 const showMyPosts = ref(false)
-
 const isCommentSectionOpen = ref(false)
 const activeSlug = ref(null)
+const totalPostsCount = ref(0)
+const myPostsCount = ref(0)
+const searchTerm = ref('')
+const sortOption = ref('latest')
 
 const toggleCommentSection = (slug: string) => {
   activeSlug.value = slug
@@ -128,7 +166,7 @@ const closeCommentSection = () => {
   isCommentSectionOpen.value = false
 }
 
-const fetchArticles = async () => {
+const fetchArticles = async (url: string = 'https://interns-blog.nafistech.com/api/posts') => {
   try {
     const token = localStorage.getItem('authToken')
     if (!token) {
@@ -141,47 +179,51 @@ const fetchArticles = async () => {
     })
     currentUserId.value = userResponse.data.id
 
-    const response = await axios.get('https://interns-blog.nafistech.com/api/posts', {
-      headers: { Authorization: `Bearer ${token}` }
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      params: {
+        page: currentPage.value,
+        sort: sortOption.value === 'latest' ? 'desc' : 'asc',
+        search: searchTerm.value
+      }
     })
 
-    articles.value = response.data.map((article: any) => ({
+    articles.value = response.data.data.map((article: any) => ({
       title: article.title,
       content: article.content.substring(0, 70) + '...',
       author: article.user.name,
       slug: article.slug,
-      authorId: article.user.id
+      authorId: article.user.id,
+      commentsCount: article.comments_count,
+      lastComment: article.last_comment ? article.last_comment.content : '',
+      image: article.image_thumb
     }))
+
+    myPostsCount.value = articles.value.filter(
+      (article) => article.authorId === currentUserId.value
+    ).length
+    totalPostsCount.value = response.data.meta.total
 
     if (showMyPosts.value) {
       articles.value = articles.value.filter((article) => article.authorId === currentUserId.value)
     }
+
+    pagination.value = {
+      prev: response.data.links.prev,
+      next: response.data.links.next,
+      pages: response.data.meta.links
+        .filter((link: any) => !isNaN(link.label))
+        .map((link: any) => ({
+          number: parseInt(link.label),
+          url: link.url,
+          isActive: link.active,
+          label: link.label
+        }))
+    }
+
+    currentPage.value = response.data.meta.current_page
   } catch (error) {
     console.error('Error fetching articles:', error)
-  }
-}
-
-const paginatedArticles = computed(() => {
-  const start = (currentPage.value - 1) * articlesPerPage
-  const end = start + articlesPerPage
-  return articles.value.slice(start, end)
-})
-
-const goToPage = (page: number) => {
-  if (page >= 1 && page <= totalPages.value) {
-    currentPage.value = page
-  }
-}
-
-const prevPage = () => {
-  if (currentPage.value > 1) {
-    goToPage(currentPage.value - 1)
-  }
-}
-
-const nextPage = () => {
-  if (currentPage.value < totalPages.value) {
-    goToPage(currentPage.value + 1)
   }
 }
 
@@ -207,7 +249,7 @@ const openEditPostPopup = async (slug: string) => {
       headers: { Authorization: `Bearer ${token}` }
     })
 
-    currentPost.value = response.data
+    currentPost.value = response.data.data
     mode.value = 'edit'
     showAddPostPopup.value = true
   } catch (error) {
@@ -240,7 +282,7 @@ const deletePost = async (slug: string) => {
       })
 
       Swal.fire('Deleted!', 'Your post has been deleted.', 'success')
-      fetchArticles()
+      fetchArticles(pagination.value.next)
     } catch (error) {
       console.error('Error deleting post:', error)
       Swal.fire('Error!', 'Failed to delete the post. Please try again.', 'error')
@@ -248,28 +290,37 @@ const deletePost = async (slug: string) => {
   }
 }
 
-const myPostsCount = computed(() => {
-  return articles.value.filter((article) => article.authorId === currentUserId.value).length
+const filterButtonWithCount = computed(() => {
+  return showMyPosts.value ? `All Posts` : `My Posts (${myPostsCount.value})`
 })
 
-const filterButtonWithCount = computed(() => {
-  if (showMyPosts.value) {
-    return 'All Posts'
-  } else {
-    return `My Posts (${myPostsCount.value})`
-  }
+const latestPostsTitle = computed(() => {
+  return `Latest Posts (${totalPostsCount.value})`
 })
+
+const filteredArticles = computed(() => {
+  if (!searchTerm.value) return articles.value
+  return articles.value.filter(
+    (article) =>
+      article.title.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+      article.content.toLowerCase().includes(searchTerm.value.toLowerCase())
+  )
+})
+
+const handleSearchChange = () => {
+  fetchArticles()
+}
 
 const togglePostsFilter = () => {
   showMyPosts.value = !showMyPosts.value
   fetchArticles()
 }
 
-const headerTitle = computed(() => {
-  return showMyPosts.value ? 'My Posts' : 'Latest Posts'
+onMounted(() => {
+  fetchArticles()
 })
 
-onMounted(() => {
+watch(searchTerm, () => {
   fetchArticles()
 })
 </script>
@@ -289,6 +340,37 @@ onMounted(() => {
   font-weight: bold;
   color: #3186d6;
   margin: 0;
+}
+
+.search-container {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.search-input {
+  width: 100%;
+  max-width: 400px;
+
+  padding: 15px;
+  border: 1px solid #3186d6;
+  border-radius: 25px;
+}
+
+.search-input:active {
+  border: 1px solid #3314e2;
+}
+
+.comments-section {
+  display: flex;
+  align-items: center;
+}
+
+.comments-count {
+  margin-left: 5px;
+  font-size: 14px;
+  color: #555;
 }
 
 .new-post-button {

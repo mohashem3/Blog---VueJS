@@ -11,6 +11,18 @@
           <textarea required v-model="content"></textarea>
           <label>Enter Article Content</label>
         </div>
+        <div class="file-upload">
+          <!-- <button class="file-upload-btn" type="button" @click="triggerFileInput">Add Image</button> -->
+          <div class="image-upload-wrap">
+            <input
+              class="file-upload-input"
+              type="file"
+              @change="readURL"
+              accept="image/*"
+              ref="fileInput"
+            />
+          </div>
+        </div>
         <div class="field action-buttons">
           <button type="submit" :disabled="loading" class="submit-button">
             {{ isEditing ? 'Save Changes' : 'Add Post' }}
@@ -36,6 +48,7 @@ const emit = defineEmits(['update:showPopup', 'post-added'])
 
 const title = ref('')
 const content = ref('')
+const imageSrc = ref<string | null>(null)
 const loading = ref(false)
 const isEditing = ref(false)
 
@@ -45,10 +58,12 @@ watch(
     if (newVal) {
       title.value = newVal.title
       content.value = newVal.content
+      imageSrc.value = newVal.image // Set the image if editing
       isEditing.value = true
     } else {
       title.value = ''
       content.value = ''
+      imageSrc.value = null
       isEditing.value = false
     }
   }
@@ -63,18 +78,25 @@ const submitPost = async () => {
       return
     }
 
+    const formData = new FormData()
+    formData.append('title', title.value)
+    formData.append('content', content.value)
+
+    if (imageFile.value) {
+      formData.append('image', imageFile.value) // Append the file for 'img'
+      formData.append('image_thumb', imageFile.value) // Append the file for 'img_thumb'
+    }
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'multipart/form-data' // Important for file uploads
+    }
+
     if (isEditing.value) {
       await axios.patch(
         `https://interns-blog.nafistech.com/api/posts/${props.postData.slug}`,
-        {
-          title: title.value,
-          content: content.value
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
+        formData,
+        { headers }
       )
       Swal.fire({
         icon: 'success',
@@ -82,19 +104,7 @@ const submitPost = async () => {
         text: 'Your post has been successfully updated.'
       })
     } else {
-      await axios.post(
-        'https://interns-blog.nafistech.com/api/posts',
-        {
-          title: title.value,
-          content: content.value,
-          author: 'currentUser' // Replace with logic to get the current user's name
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      )
+      await axios.post('https://interns-blog.nafistech.com/api/posts', formData, { headers })
       Swal.fire({
         icon: 'success',
         title: 'Post Added!',
@@ -118,6 +128,34 @@ const submitPost = async () => {
 
 const cancel = () => {
   emit('update:showPopup', false)
+}
+
+const imageFile = ref<File | null>(null)
+
+const readURL = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  if (input.files && input.files[0]) {
+    const file = input.files[0]
+    imageFile.value = file
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      imageSrc.value = e.target?.result as string // Show preview
+    }
+    reader.readAsDataURL(file)
+  } else {
+    removeUpload() // Handle case when no file is selected
+  }
+}
+
+const removeUpload = () => {
+  imageSrc.value = null
+  ;(refs.fileInput as HTMLInputElement).value = ''
+  imageFile.value = null
+}
+
+const triggerFileInput = () => {
+  ;(refs.fileInput as HTMLInputElement).click()
 }
 </script>
 
@@ -153,7 +191,7 @@ button {
 
 .wrapper {
   width: 500px;
-  height: 500px;
+  height: auto;
   background: transparent;
   border-radius: 15px;
   padding: 20px;
@@ -240,5 +278,103 @@ form {
   background: #f44336; /* Red color for cancel button */
   color: white;
   font-size: 20px;
+}
+
+.file-upload-input {
+  background: linear-gradient(-135deg, #01c2cc, #7d2ae7);
+  color: white;
+  font-size: 15px;
+}
+
+.file-upload {
+  margin-top: 20px;
+  background-color: #ffffff;
+  width: 100%;
+}
+
+.file-upload-btn {
+  width: 100%;
+  margin-bottom: 20px; /* Add space between button and image container */
+  color: #fff;
+  background: #01c2cc;
+  border: none;
+  padding: 10px;
+  border-radius: 5px;
+  border-bottom: 4px solid #0097a7;
+  transition: all 0.2s ease;
+  outline: none;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.file-upload-btn:hover {
+  background: #0097a7;
+}
+
+.file-upload-btn:active {
+  background: #007e8a;
+}
+
+.image-upload-wrap {
+  position: relative;
+  width: 100%;
+  height: 100px; /* Ensure this height matches your container */
+  border: 2px dashed #01c2cc;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #f3f3f3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drag-text {
+  color: #01c2cc;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.file-upload-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.file-upload-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.image-title-wrap {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.remove-image {
+  background: #f44336; /* Red color for remove button */
+  color: white;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: none;
+}
+
+.remove-image:hover {
+  background: #c62828; /* Darker red on hover */
+}
+
+.remove-image .image-title {
+  font-size: 14px;
+  font-weight: 500;
 }
 </style>

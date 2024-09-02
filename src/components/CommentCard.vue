@@ -1,39 +1,78 @@
 <template>
-  <div class="comment-card">
-    <div class="comment-card__header">
-      <span class="material-symbols-outlined">account_circle</span>
-      <span class="comment-card__author">Author</span>
-    </div>
-    <div class="comment-card__content">
-      <p class="comment-card__text">Comment Test</p>
-    </div>
-    <div class="comment-card__actions">
-      <img
-        @click="editComment"
-        width="18"
-        height="18"
-        src="https://img.icons8.com/metro/26/000000/edit.png"
-        alt="Edit Comment"
-        class="action-icon"
-      />
-      <img
-        @click="deleteComment"
-        width="21"
-        height="21"
-        src="https://img.icons8.com/windows/32/000000/trash.png"
-        alt="Delete Comment"
-        class="action-icon"
-      />
+  <div class="container">
+    <!-- Blog Post Details -->
+    <div v-if="post" class="post-details">
+      <h1>{{ post.title }}</h1>
+      <img :src="post.image" alt="Post Image" class="post-image" />
+      <p>{{ post.content }}</p>
+
+      <!-- Comment Section -->
+      <div class="comment-section">
+        <h3>Comments</h3>
+        <div v-if="comments.length">
+          <div v-for="comment in displayedComments" :key="comment.id" class="comment">
+            <p>
+              <strong>{{ comment.user.name }}:</strong> {{ comment.content }}
+            </p>
+            <span class="comment-time">{{ comment.created_at_readable }}</span>
+          </div>
+        </div>
+        <div v-else>No comments yet.</div>
+        <button v-if="comments.length > 5" @click="toggleComments">
+          {{ showAllComments ? 'Show Less' : 'Show More' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-const props = defineProps({
-  author: String,
-  comment: String
+import { ref, onMounted, computed } from 'vue'
+import axios from 'axios'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+const post = ref(null)
+const comments = ref([]) // Holds all comments
+const displayedComments = ref([]) // Holds comments to display
+const showAllComments = ref(false)
+
+const fetchPost = async () => {
+  try {
+    const slug = route.params.slug
+    const token = localStorage.getItem('authToken')
+    if (!token) {
+      console.error('No auth token found')
+      return
+    }
+
+    const response = await axios.get(`https://interns-blog.nafistech.com/api/posts/${slug}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+
+    post.value = response.data.data
+    comments.value = post.value.comments
+
+    // Set initially displayed comments
+    displayedComments.value = comments.value.slice(0, 5) // Show first 5 comments initially
+  } catch (error) {
+    console.error('Error fetching post:', error)
+  }
+}
+
+const toggleComments = () => {
+  showAllComments.value = !showAllComments.value
+  displayedComments.value = showAllComments.value ? comments.value : comments.value.slice(0, 5)
+}
+
+onMounted(() => {
+  fetchPost()
 })
 </script>
+
+<style scoped>
+/* Add relevant styles here */
+</style>
 
 <style scoped>
 .comment-card {

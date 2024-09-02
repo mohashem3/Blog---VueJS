@@ -24,10 +24,14 @@
 
       <h3>Comments</h3>
       <div v-if="comments.length" class="comments-list">
-        <div v-for="comment in comments" :key="comment.id" class="comment-card">
+        <div
+          v-for="(comment, index) in comments.slice().reverse()"
+          :key="index"
+          class="comment-card"
+        >
           <div class="comment-card__header">
             <span class="material-symbols-outlined">account_circle</span>
-            <span class="comment-card__author">{{ comment.authorName }}</span>
+            <span class="comment-card__author">{{ comment.user.name }}</span>
           </div>
           <div class="comment-card__content">
             <p
@@ -39,6 +43,7 @@
           </div>
           <div class="comment-card__actions">
             <img
+              v-if="canEditComment(comment)"
               @click="startEdit(comment)"
               width="18"
               height="18"
@@ -47,6 +52,7 @@
               class="action-icon"
             />
             <img
+              v-if="canDeleteComment(comment)"
               @click="deleteComment(comment.id)"
               width="21"
               height="21"
@@ -82,13 +88,33 @@ const commentContent = ref('')
 const comments = ref<any[]>([])
 const isEditing = ref(false)
 const editedCommentId = ref<number | null>(null)
+const userId = ref<number | null>(null)
+const postOwnerId = ref<number | null>(null)
 
-const fetchComments = async () => {
+// Fetch the logged-in user's ID and the post owner's ID
+const fetchUserInfo = async () => {
   try {
-    const response = await axios.get(`https://interns-blog.nafistech.com/api/posts/${props.slug}`)
-    comments.value = response.data.comments || []
+    const token = localStorage.getItem('authToken')
+    if (!token) {
+      console.error('No auth token found')
+      return
+    }
+
+    const userResponse = await axios.get('https://interns-blog.nafistech.com/api/user', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    userId.value = userResponse.data.id
+
+    const postResponse = await axios.get(
+      `https://interns-blog.nafistech.com/api/posts/${props.slug}`,
+      {
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    )
+    postOwnerId.value = postResponse.data.data.user.id
+    comments.value = postResponse.data.data.comments || []
   } catch (error) {
-    console.error('Error fetching comments:', error)
+    console.error('Error fetching user info or comments:', error)
   }
 }
 
@@ -108,7 +134,7 @@ const submitComment = async () => {
       }
     )
 
-    comments.value.push(response.data)
+    comments.value.push(response.data.data)
     commentContent.value = ''
   } catch (error) {
     console.error('Error submitting comment:', error)
@@ -144,7 +170,6 @@ const updateComment = async () => {
       }
     )
 
-    // Update the comment locally
     const commentToUpdate = comments.value.find((c) => c.id === editedCommentId.value)
     if (commentToUpdate) {
       commentToUpdate.content = commentContent.value
@@ -197,7 +222,6 @@ const deleteComment = async (commentId: number) => {
         }
       )
 
-      // Remove the comment locally
       comments.value = comments.value.filter((c) => c.id !== commentId)
     } catch (error) {
       console.error('Error deleting comment:', error)
@@ -205,9 +229,19 @@ const deleteComment = async (commentId: number) => {
   }
 }
 
+// Determine if the logged-in user can edit the comment
+const canEditComment = (comment: any) => {
+  return comment.user.id === userId.value
+}
+
+// Determine if the logged-in user can delete the comment
+const canDeleteComment = (comment: any) => {
+  return comment.user.id === userId.value || userId.value === postOwnerId.value
+}
+
 onMounted(() => {
   if (props.isOpen) {
-    fetchComments()
+    fetchUserInfo()
   }
 })
 
@@ -215,7 +249,7 @@ watch(
   () => props.isOpen,
   (newVal) => {
     if (newVal) {
-      fetchComments()
+      fetchUserInfo()
     }
   }
 )

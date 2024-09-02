@@ -1,12 +1,10 @@
 <template>
   <div class="cards">
     <article class="information [ card ]">
-      <span class="tag">Productivity</span>
-      <h2 class="title">Never miss your important tasks</h2>
-      <p class="info">
-        <strong>NAFIS TO-DO</strong> tracks all the tasks for the day as you scheduled.
-      </p>
-      <p class="info">You will never have to worry about your daily tasks.</p>
+      <span class="tag">Creativity</span>
+      <h2 class="title">Never hold your thoughts</h2>
+      <p class="info"><strong>NAFIS Insights</strong> Share your thoughts with others.</p>
+      <p class="info">You will never have to worry about your ideas.</p>
       <button class="button" @click="showSignupPopup">Learn more</button>
     </article>
     <article class="plan [ card ]">
@@ -28,7 +26,7 @@
                 />
               </svg>
             </span>
-            <span><strong>Add & Delete</strong> Tasks</span>
+            <span><strong>Add & Delete</strong> Posts & Comments</span>
           </li>
           <li>
             <span class="icon">
@@ -40,7 +38,7 @@
                 />
               </svg>
             </span>
-            <span><strong>Edit</strong> Tasks</span>
+            <span><strong>Edit</strong> Comments</span>
           </li>
           <li>
             <span class="icon">
@@ -52,7 +50,7 @@
                 />
               </svg>
             </span>
-            <span><strong>Update</strong> Task Status</span>
+            <span><strong>Update</strong> Posts</span>
           </li>
         </ul>
         <button class="button" @click="showSignupPopup">Choose Plan</button>
@@ -60,9 +58,9 @@
     </article>
     <article class="information [ card ]">
       <span class="tag">Efficiency</span>
-      <h2 class="title">The only tool you need to schedule your day</h2>
+      <h2 class="title">The only platform you need to publish your ideas</h2>
       <p class="info">
-        Always keep updated with this simple tool on the go, when and wherever you need.
+        Always keep updated with this platform on the go, when and wherever you need.
       </p>
       <dl class="details">
         <!-- Details -->
