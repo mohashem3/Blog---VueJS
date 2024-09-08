@@ -57,12 +57,7 @@
             class="edit-icon"
           />
 
-          <img
-            @click="toggleCommentSection(article.slug)"
-            :src="commentIcon"
-            alt="Comment Icon"
-            class="comment-icon"
-          />
+          <img :src="commentIcon" alt="Comment Icon" class="comment-icon" />
           <span class="comments-count">{{ article.commentsCount }}</span>
         </div>
 
@@ -166,7 +161,9 @@ const closeCommentSection = () => {
   isCommentSectionOpen.value = false
 }
 
-const fetchArticles = async (url: string = 'https://interns-blog.nafistech.com/api/posts') => {
+const fetchArticles = async (
+  url: string = `https://interns-blog.nafistech.com/api/posts?page=${currentPage.value}`
+) => {
   try {
     const token = localStorage.getItem('authToken')
     if (!token) {
@@ -182,7 +179,6 @@ const fetchArticles = async (url: string = 'https://interns-blog.nafistech.com/a
     const response = await axios.get(url, {
       headers: { Authorization: `Bearer ${token}` },
       params: {
-        page: currentPage.value,
         sort: sortOption.value === 'latest' ? 'desc' : 'asc',
         search: searchTerm.value
       }
@@ -204,15 +200,12 @@ const fetchArticles = async (url: string = 'https://interns-blog.nafistech.com/a
     ).length
     totalPostsCount.value = response.data.meta.total
 
-    if (showMyPosts.value) {
-      articles.value = articles.value.filter((article) => article.authorId === currentUserId.value)
-    }
-
+    // Update pagination information
     pagination.value = {
       prev: response.data.links.prev,
       next: response.data.links.next,
       pages: response.data.meta.links
-        .filter((link: any) => !isNaN(link.label))
+        .filter((link: any) => !isNaN(link.label)) // Get only the numbered pages
         .map((link: any) => ({
           number: parseInt(link.label),
           url: link.url,
@@ -225,6 +218,19 @@ const fetchArticles = async (url: string = 'https://interns-blog.nafistech.com/a
   } catch (error) {
     console.error('Error fetching articles:', error)
   }
+}
+
+// Function to change the page
+const goToPage = (pageUrl: string) => {
+  if (pageUrl) {
+    fetchArticles(pageUrl)
+  }
+}
+
+// Function to handle next/prev page
+const changePage = (direction: 'prev' | 'next') => {
+  const pageUrl = direction === 'prev' ? pagination.value.prev : pagination.value.next
+  goToPage(pageUrl)
 }
 
 const isPostOwner = (authorId: string) => {
@@ -422,7 +428,7 @@ watch(searchTerm, () => {
   align-items: center;
   width: 100%;
   max-width: 1000px;
-  height: 200px;
+  height: 250px;
   margin: 30px auto;
   background: #fff;
   box-shadow: 0px 14px 80px rgba(119, 125, 231, 0.277);
@@ -523,16 +529,10 @@ watch(searchTerm, () => {
 }
 
 .comment-icon {
-  cursor: pointer; /* Change cursor to pointer */
-  transition: transform 0.3s ease; /* Smooth transition for hover effect */
   margin-top: 10px;
   margin-right: 20px;
   width: 20px;
   height: 20px;
-}
-
-.comment-icon:hover {
-  transform: scale(1.3); /* Slightly enlarge on hover */
 }
 
 .button-icon {

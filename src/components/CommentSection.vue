@@ -134,8 +134,15 @@ const submitComment = async () => {
       }
     )
 
-    comments.value.push(response.data.data)
-    commentContent.value = ''
+    // If the comment was added successfully
+    if (response.data.data) {
+      commentContent.value = '' // Clear input field
+
+      // Refresh comments after successfully adding the new one
+      await fetchUserInfo() // Re-fetch comments from API to ensure it's up to date
+    } else {
+      console.error('Failed to add comment')
+    }
   } catch (error) {
     console.error('Error submitting comment:', error)
   }
@@ -365,6 +372,18 @@ watch(
 
 .comments-list {
   margin-top: 20px;
+  max-height: 300px; /* Adjust this value as needed */
+  overflow-y: auto;
+  padding-right: 10px; /* Adds some padding to the right to avoid overlap with the scrollbar */
+}
+
+.comments-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.comments-list::-webkit-scrollbar-thumb {
+  background-color: #3186d6; /* Customize scrollbar thumb color */
+  border-radius: 4px;
 }
 
 .comment-card {
