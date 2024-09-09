@@ -33,7 +33,7 @@
           alt="Comment Icon"
           class="comment-icon"
         />
-        <span class="comments-count">{{ post.commentsCount }}</span>
+        <span class="comments-count">{{ post.comments_count }}</span>
       </div>
 
       <!-- Heart Icon for Likes -->
@@ -52,7 +52,7 @@
       </div>
 
       <div class="article-card__img">
-        <img :src="post.image" alt="Article Image" />
+        <img :src="post.image ? post.image : defaultImage" alt="Article Image" />
       </div>
       <div class="article-card__content">
         <p class="article-card__text">{{ post.content }}</p>
@@ -97,13 +97,14 @@ import CommentSection from '../components/CommentSection.vue'
 import commentIcon from '../assets/img/comment-icon.svg'
 import { useRouter, useRoute } from 'vue-router'
 import LikesList from '@/components/LikesList.vue'
+import defaultImage from '../assets/img/empty-img.png'
 
 const router = useRouter()
 const route = useRoute()
 
 const post = ref({
   image: '',
-  commentsCount: 0,
+  comments_count: 0,
   author: '',
   authorId: 0,
   likes_count: 0,
@@ -184,7 +185,7 @@ const fetchPost = async () => {
     post.value = {
       ...response.data.data,
       image: response.data.data.image, // Use thumbnail image for smaller view
-      commentsCount: response.data.data.comments_count,
+      comments_count: response.data.data.comments_count,
       author: response.data.data.user.name, // Author's name
       authorId: response.data.data.user.id, // Author's ID for ownership check
       likes_count: response.data.data.likes_count, // Mapped likes count
@@ -341,10 +342,12 @@ onMounted(() => {
 }
 
 .article-card__img img {
-  width: 100%;
-
-  object-fit: cover;
-  border-radius: 8px;
+  width: 100%; /* Ensure the image fills the width of its container */
+  max-width: 100%; /* Prevent the image from growing beyond its container width */
+  max-height: 400px; /* Set a maximum height to prevent excessively tall images */
+  object-fit: cover; /* Ensure the image covers the container without stretching */
+  border-radius: 8px; /* Match the border radius of the card */
+  margin-bottom: 15px; /* Space between image and content */
 }
 
 .article-card__content {
@@ -390,5 +393,6 @@ onMounted(() => {
 
 .comments-count {
   font-weight: bold;
+  color: black;
 }
 </style>

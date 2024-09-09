@@ -25,7 +25,7 @@
         type="text"
         placeholder="Search articles..."
         class="search-input"
-        @input="handleSearchChange"
+        @input="debouncedFetchArticles"
       />
 
       <button class="new-post-button" @click="openAddPostPopup">
@@ -156,16 +156,19 @@ import { useRouter } from 'vue-router'
 import defaultImage from '../assets/img/empty-img.png'
 import LikesList from './LikesList.vue'
 
-import { debounce } from 'lodash'
+const debounce = (func: Function, delay: number) => {
+  let timeoutId: number | undefined
+  return (...args: any[]) => {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId)
+    }
+    timeoutId = window.setTimeout(() => func(...args), delay)
+  }
+}
 
-// Create a debounced version of fetchArticles
 const debouncedFetchArticles = debounce(() => {
   fetchArticles()
-}, 300) // Adjust the debounce delay as needed (300ms is typical)
-
-const handleSearchChange = () => {
-  debouncedFetchArticles()
-}
+}, 500)
 
 const router = useRouter()
 
@@ -200,6 +203,16 @@ const totalPostsCount = ref(0)
 const myPostsCount = ref(0)
 const searchTerm = ref('')
 const sortOption = ref('latest')
+
+// Load page from localStorage or set default to 1
+const loadPageFromStorage = () => {
+  const savedPage = localStorage.getItem('currentPage')
+  currentPage.value = savedPage ? parseInt(savedPage, 10) : 1
+}
+
+const savePageToStorage = (page: number) => {
+  localStorage.setItem('currentPage', page.toString())
+}
 
 const toggleLikesListPopup = () => {
   showLikesListPopup.value = !showLikesListPopup.value
@@ -256,64 +269,7 @@ const toggleLike = async (article: {
   }
 }
 
-// const fetchArticles = async (pageUrl?: string) => {
-//   try {
-//     const token = localStorage.getItem('authToken')
-//     if (!token) {
-//       console.error('No auth token found')
-//       return
-//     }
-
-//     const userResponse = await axios.get('https://interns-blog.nafistech.com/api/user', {
-//       headers: { Authorization: `Bearer ${token}` }
-//     })
-//     currentUserId.value = userResponse.data.id
-
-//     // Use pageUrl if provided, otherwise use the built URL
-//     const url = pageUrl || buildURL()
-//     const response = await axios.get(url, {
-//       headers: { Authorization: `Bearer ${token}` }
-//     })
-
-//     articles.value = response.data.data.map((article: any) => ({
-//       title: article.title,
-//       content: article.content.substring(0, 70) + '...',
-//       author: article.user.name,
-//       slug: article.slug,
-//       authorId: article.user.id,
-//       commentsCount: article.comments_count,
-//       lastComment: article.last_comment ? article.last_comment.content : '',
-//       image: article.image_thumb,
-//       likes_count: article.likes_count,
-//       liked_by_user: article.liked_by_user
-//     }))
-
-//     myPostsCount.value = articles.value.filter(
-//       (article) => article.authorId === currentUserId.value
-//     ).length
-//     totalPostsCount.value = response.data.meta.total
-
-//     // Update pagination information
-//     pagination.value = {
-//       prev: response.data.links.prev || null,
-//       next: response.data.links.next || null,
-//       pages: response.data.meta.links
-//         .filter((link: any) => !isNaN(parseInt(link.label))) // Ensure label is parsed as an integer
-//         .map((link: any) => ({
-//           number: parseInt(link.label),
-//           url: link.url,
-//           isActive: link.active,
-//           label: link.label
-//         }))
-//     }
-
-//     currentPage.value = response.data.meta.current_page
-//   } catch (error) {
-//     console.error('Error fetching articles:', error)
-//   }
-// }
-
-const fetchArticles = async (pageUrl?: string) => {
+const fetchArticles = async (pageUrl?: string, attempt = 1) => {
   try {
     const token = localStorage.getItem('authToken')
     if (!token) {
@@ -367,8 +323,22 @@ const fetchArticles = async (pageUrl?: string) => {
     }
 
     currentPage.value = response.data.meta.current_page
+    savePageToStorage(currentPage.value) // Save current page to localStorage
   } catch (error) {
-    console.error('Error fetching articles:', error)
+    if (error.response?.status === 429 && attempt < 5) {
+      // Retry after delay if rate limit is hit
+      const delay = Math.pow(2, attempt) * 1000 // Exponential backoff
+      console.warn(`Rate limit exceeded. Retrying in ${delay}ms...`)
+      setTimeout(() => fetchArticles(pageUrl, attempt + 1), delay)
+      // } else {
+      //   // Display a user-friendly error message
+      //   Swal.fire({
+      //     icon: 'error',
+      //     title: 'Oops...',
+      //     text: 'Something went wrong while fetching articles. Please try again later.'
+      //   })
+      console.error('Error fetching articles:', error)
+    }
   }
 }
 
@@ -383,19 +353,12 @@ const buildURL = () => {
   return `${baseURL}?${params.toString()}`
 }
 
-// Watch for changes in sortOption and fetch articles accordingly
-watch(sortOption, () => {
-  fetchArticles()
+// Watch for changes in sortOption and searchTerm and fetch articles accordingly
+watch([sortOption, searchTerm], () => {
+  debouncedFetchArticles()
 })
 
 // Function to change the page
-// const goToPage = (pageUrl: string) => {
-//   if (pageUrl) {
-//     fetchArticles(pageUrl)
-//   }
-// }
-
-// Function to handle next/prev page
 const changePage = (direction: 'prev' | 'next') => {
   const pageUrl = direction === 'prev' ? pagination.value.prev : pagination.value.next
   if (pageUrl) {
@@ -463,10 +426,6 @@ const deletePost = async (slug: string) => {
   }
 }
 
-// const handleSearchChange = () => {
-//   fetchArticles()
-// }
-
 const togglePostsFilter = () => {
   showMyPosts.value = !showMyPosts.value
 }
@@ -481,10 +440,7 @@ const latestPostsTitle = computed(() => `Latest Posts (${totalPostsCount.value})
 const filterButtonWithCount = computed(() => `My Posts (${myPostsCount.value})`)
 
 onMounted(() => {
-  fetchArticles()
-})
-
-watch([sortOption, searchTerm], () => {
+  loadPageFromStorage()
   fetchArticles()
 })
 </script>
