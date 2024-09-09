@@ -3,6 +3,15 @@
     <!-- Header and Buttons -->
     <div class="header-container">
       <h2 class="header">{{ latestPostsTitle }}</h2>
+
+      <!-- Sorting Dropdown -->
+      <div class="sort-container">
+        <label for="sort-order">Sort by:</label>
+        <select v-model="sortOption" @change="fetchArticles">
+          <option value="latest">Latest</option>
+          <option value="oldest">Oldest</option>
+        </select>
+      </div>
     </div>
 
     <div class="header-container">
@@ -28,13 +37,15 @@
     <!-- Article Cards -->
     <div v-for="article in filteredArticles" :key="article.slug" class="article-card">
       <div class="article-card__img" @click="viewArticle(article.slug)">
-        <img :src="article.image" alt="Article Image" />
+        <img :src="article.image ? article.image : defaultImage" alt="Article Image" />
       </div>
+
       <div class="article-card__content">
         <h3 class="article-card__title" @click="viewArticle(article.slug)">{{ article.title }}</h3>
         <p class="article-card__text" @click="viewArticle(article.slug)">{{ article.content }}</p>
         <div class="user">
           <span class="material-symbols-outlined"> account_circle </span>
+
           <span class="article-card__author">{{ article.author }}</span>
         </div>
         <div class="post-actions">
@@ -56,17 +67,35 @@
             alt="trash"
             class="edit-icon"
           />
-
+          <!-- <span class="comments"> -->
           <img :src="commentIcon" alt="Comment Icon" class="comment-icon" />
           <span class="comments-count">{{ article.commentsCount }}</span>
+          <!-- </span> -->
         </div>
-
+        <!-- Heart Icon for Likes -->
+        <div class="likes">
+          <span @click="toggleLike(article)" class="like-icon">
+            <i
+              :class="{
+                'fa-solid': article.liked_by_user,
+                'fa-regular': !article.liked_by_user
+              }"
+            ></i>
+          </span>
+          <span class="like-count">{{ article.likes_count }}</span>
+        </div>
         <!-- Separator Line -->
         <hr class="separator-line" />
 
         <!-- Latest Comment Section -->
+
         <div class="latest-comment" v-if="article.lastComment">
+          <p class="latest-comment__title"><strong>Latest Comment</strong></p>
           <p class="latest-comment__text">{{ article.lastComment }}</p>
+          <div class="user">
+            <span class="material-symbols-outlined"> account_circle </span>
+            <span class="article-card__author">{{ article.lastCommentAuthor }}</span>
+          </div>
         </div>
       </div>
       <!-- View More Button -->
@@ -77,18 +106,17 @@
 
     <!-- Pagination Controls -->
     <div class="pagination">
-      <a href="#" v-if="pagination.prev" @click.prevent="fetchArticles(pagination.prev)">
-        Previous
-      </a>
+      <a href="#" v-if="pagination.prev" @click.prevent="changePage('prev')"> Previous </a>
       <a
         v-for="page in pagination.pages"
         :key="page.number"
         :class="{ active: page.isActive }"
         href="#"
         @click.prevent="fetchArticles(page.url)"
-        >{{ page.label }}</a
       >
-      <a href="#" v-if="pagination.next" @click.prevent="fetchArticles(pagination.next)"> Next </a>
+        {{ page.label }}
+      </a>
+      <a href="#" v-if="pagination.next" @click.prevent="changePage('next')"> Next </a>
     </div>
 
     <!-- AddPost Popup -->
@@ -105,6 +133,13 @@
       :slug="activeSlug"
       @close="closeCommentSection"
     />
+
+    <!-- LikesList Popup -->
+    <LikesList
+      :showPopup="showLikesListPopup"
+      @update:showPopup="showLikesListPopup = $event"
+      :articleId="currentArticleId"
+    />
   </div>
 </template>
 
@@ -118,6 +153,19 @@ import myPostIcon from '../assets/img/myposts-icon.svg'
 import commentIcon from '../assets/img/comment-icon.svg'
 import CommentSection from './CommentSection.vue'
 import { useRouter } from 'vue-router'
+import defaultImage from '../assets/img/empty-img.png'
+import LikesList from './LikesList.vue'
+
+import { debounce } from 'lodash'
+
+// Create a debounced version of fetchArticles
+const debouncedFetchArticles = debounce(() => {
+  fetchArticles()
+}, 300) // Adjust the debounce delay as needed (300ms is typical)
+
+const handleSearchChange = () => {
+  debouncedFetchArticles()
+}
 
 const router = useRouter()
 
@@ -132,6 +180,7 @@ const props = defineProps({
   }
 })
 
+const showLikesListPopup = ref(false)
 const articles = ref([])
 const currentPost = ref(null)
 const currentPage = ref(1)
@@ -152,6 +201,10 @@ const myPostsCount = ref(0)
 const searchTerm = ref('')
 const sortOption = ref('latest')
 
+const toggleLikesListPopup = () => {
+  showLikesListPopup.value = !showLikesListPopup.value
+}
+
 const toggleCommentSection = (slug: string) => {
   activeSlug.value = slug
   isCommentSectionOpen.value = !isCommentSectionOpen.value
@@ -161,9 +214,106 @@ const closeCommentSection = () => {
   isCommentSectionOpen.value = false
 }
 
-const fetchArticles = async (
-  url: string = `https://interns-blog.nafistech.com/api/posts?page=${currentPage.value}`
-) => {
+const toggleLike = async (article: {
+  slug: string
+  liked_by_user: boolean
+  likes_count: number
+}) => {
+  if (article) {
+    // Optimistically update the like state
+    article.liked_by_user = !article.liked_by_user
+    article.likes_count += article.liked_by_user ? 1 : -1
+
+    try {
+      const token = localStorage.getItem('authToken')
+      if (!token) {
+        console.error('No auth token found')
+        return
+      }
+
+      // Send request to the server to toggle the like
+      const response = await axios.post(
+        `https://interns-blog.nafistech.com/api/posts/like/${article.slug}`,
+        null,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      )
+
+      // Check if the response status is not OK
+      if (response.status !== 200) {
+        // Revert the like state if there's an error
+        article.liked_by_user = !article.liked_by_user
+        article.likes_count += article.liked_by_user ? -1 : 1
+        console.error('Error toggling like: Unexpected response status', response.status)
+      }
+    } catch (error) {
+      // Revert the like state if there's an error
+      article.liked_by_user = !article.liked_by_user
+      article.likes_count += article.liked_by_user ? -1 : 1
+      console.error('Error toggling like:', error)
+    }
+  }
+}
+
+// const fetchArticles = async (pageUrl?: string) => {
+//   try {
+//     const token = localStorage.getItem('authToken')
+//     if (!token) {
+//       console.error('No auth token found')
+//       return
+//     }
+
+//     const userResponse = await axios.get('https://interns-blog.nafistech.com/api/user', {
+//       headers: { Authorization: `Bearer ${token}` }
+//     })
+//     currentUserId.value = userResponse.data.id
+
+//     // Use pageUrl if provided, otherwise use the built URL
+//     const url = pageUrl || buildURL()
+//     const response = await axios.get(url, {
+//       headers: { Authorization: `Bearer ${token}` }
+//     })
+
+//     articles.value = response.data.data.map((article: any) => ({
+//       title: article.title,
+//       content: article.content.substring(0, 70) + '...',
+//       author: article.user.name,
+//       slug: article.slug,
+//       authorId: article.user.id,
+//       commentsCount: article.comments_count,
+//       lastComment: article.last_comment ? article.last_comment.content : '',
+//       image: article.image_thumb,
+//       likes_count: article.likes_count,
+//       liked_by_user: article.liked_by_user
+//     }))
+
+//     myPostsCount.value = articles.value.filter(
+//       (article) => article.authorId === currentUserId.value
+//     ).length
+//     totalPostsCount.value = response.data.meta.total
+
+//     // Update pagination information
+//     pagination.value = {
+//       prev: response.data.links.prev || null,
+//       next: response.data.links.next || null,
+//       pages: response.data.meta.links
+//         .filter((link: any) => !isNaN(parseInt(link.label))) // Ensure label is parsed as an integer
+//         .map((link: any) => ({
+//           number: parseInt(link.label),
+//           url: link.url,
+//           isActive: link.active,
+//           label: link.label
+//         }))
+//     }
+
+//     currentPage.value = response.data.meta.current_page
+//   } catch (error) {
+//     console.error('Error fetching articles:', error)
+//   }
+// }
+
+const fetchArticles = async (pageUrl?: string) => {
   try {
     const token = localStorage.getItem('authToken')
     if (!token) {
@@ -176,15 +326,14 @@ const fetchArticles = async (
     })
     currentUserId.value = userResponse.data.id
 
+    // Use pageUrl if provided, otherwise use the built URL
+    const url = pageUrl || buildURL()
     const response = await axios.get(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      params: {
-        sort: sortOption.value === 'latest' ? 'desc' : 'asc',
-        search: searchTerm.value
-      }
+      headers: { Authorization: `Bearer ${token}` }
     })
 
     articles.value = response.data.data.map((article: any) => ({
+      articleId: article.id,
       title: article.title,
       content: article.content.substring(0, 70) + '...',
       author: article.user.name,
@@ -192,7 +341,10 @@ const fetchArticles = async (
       authorId: article.user.id,
       commentsCount: article.comments_count,
       lastComment: article.last_comment ? article.last_comment.content : '',
-      image: article.image_thumb
+      lastCommentAuthor: article.last_comment ? article.last_comment.user.name : '',
+      image: article.image_thumb || defaultImage, // Use defaultImage if no image is provided
+      likes_count: article.likes_count,
+      liked_by_user: article.liked_by_user
     }))
 
     myPostsCount.value = articles.value.filter(
@@ -202,10 +354,10 @@ const fetchArticles = async (
 
     // Update pagination information
     pagination.value = {
-      prev: response.data.links.prev,
-      next: response.data.links.next,
+      prev: response.data.links.prev || null,
+      next: response.data.links.next || null,
       pages: response.data.meta.links
-        .filter((link: any) => !isNaN(link.label)) // Get only the numbered pages
+        .filter((link: any) => !isNaN(parseInt(link.label))) // Ensure label is parsed as an integer
         .map((link: any) => ({
           number: parseInt(link.label),
           url: link.url,
@@ -220,17 +372,35 @@ const fetchArticles = async (
   }
 }
 
-// Function to change the page
-const goToPage = (pageUrl: string) => {
-  if (pageUrl) {
-    fetchArticles(pageUrl)
-  }
+const buildURL = () => {
+  const baseURL = 'https://interns-blog.nafistech.com/api/posts'
+  const sortOrder = sortOption.value === 'latest' ? 'desc' : 'asc'
+  const params = new URLSearchParams({
+    page: currentPage.value.toString(),
+    sort: sortOrder,
+    search: searchTerm.value
+  })
+  return `${baseURL}?${params.toString()}`
 }
+
+// Watch for changes in sortOption and fetch articles accordingly
+watch(sortOption, () => {
+  fetchArticles()
+})
+
+// Function to change the page
+// const goToPage = (pageUrl: string) => {
+//   if (pageUrl) {
+//     fetchArticles(pageUrl)
+//   }
+// }
 
 // Function to handle next/prev page
 const changePage = (direction: 'prev' | 'next') => {
   const pageUrl = direction === 'prev' ? pagination.value.prev : pagination.value.next
-  goToPage(pageUrl)
+  if (pageUrl) {
+    fetchArticles(pageUrl)
+  }
 }
 
 const isPostOwner = (authorId: string) => {
@@ -259,74 +429,62 @@ const openEditPostPopup = async (slug: string) => {
     mode.value = 'edit'
     showAddPostPopup.value = true
   } catch (error) {
-    console.error('Error fetching post:', error)
-    Swal.fire('Error!', 'Failed to fetch the post. Please try again.', 'error')
+    console.error('Error fetching post details for edit:', error)
   }
 }
 
 const deletePost = async (slug: string) => {
-  const { isConfirmed } = await Swal.fire({
-    title: 'Are you sure?',
-    text: 'This action cannot be undone!',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#3085d6',
-    cancelButtonColor: '#d33',
-    confirmButtonText: 'Yes, delete it!'
-  })
-
-  if (isConfirmed) {
-    try {
-      const token = localStorage.getItem('authToken')
-      if (!token) {
-        console.error('No auth token found')
-        return
-      }
-
-      await axios.delete(`https://interns-blog.nafistech.com/api/posts/${slug}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-
-      Swal.fire('Deleted!', 'Your post has been deleted.', 'success')
-      fetchArticles(pagination.value.next)
-    } catch (error) {
-      console.error('Error deleting post:', error)
-      Swal.fire('Error!', 'Failed to delete the post. Please try again.', 'error')
+  try {
+    const token = localStorage.getItem('authToken')
+    if (!token) {
+      console.error('No auth token found')
+      return
     }
+
+    await Swal.fire({
+      title: 'Are you sure?',
+      text: 'This action cannot be undone!',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, delete it!'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        await axios.delete(`https://interns-blog.nafistech.com/api/posts/${slug}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        Swal.fire('Deleted!', 'Your post has been deleted.', 'success')
+        fetchArticles() // Refresh the article list
+      }
+    })
+  } catch (error) {
+    console.error('Error deleting post:', error)
   }
 }
 
-const filterButtonWithCount = computed(() => {
-  return showMyPosts.value ? `All Posts` : `My Posts (${myPostsCount.value})`
-})
-
-const latestPostsTitle = computed(() => {
-  return `Latest Posts (${totalPostsCount.value})`
-})
-
-const filteredArticles = computed(() => {
-  if (!searchTerm.value) return articles.value
-  return articles.value.filter(
-    (article) =>
-      article.title.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-      article.content.toLowerCase().includes(searchTerm.value.toLowerCase())
-  )
-})
-
-const handleSearchChange = () => {
-  fetchArticles()
-}
+// const handleSearchChange = () => {
+//   fetchArticles()
+// }
 
 const togglePostsFilter = () => {
   showMyPosts.value = !showMyPosts.value
-  fetchArticles()
 }
+
+const filteredArticles = computed(() => {
+  return articles.value.filter((article: any) => {
+    return showMyPosts.value ? article.authorId === currentUserId.value : true
+  })
+})
+
+const latestPostsTitle = computed(() => `Latest Posts (${totalPostsCount.value})`)
+const filterButtonWithCount = computed(() => `My Posts (${myPostsCount.value})`)
 
 onMounted(() => {
   fetchArticles()
 })
 
-watch(searchTerm, () => {
+watch([sortOption, searchTerm], () => {
   fetchArticles()
 })
 </script>
@@ -336,7 +494,6 @@ watch(searchTerm, () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 50px;
   margin-bottom: 30px;
   position: relative;
 }
@@ -346,6 +503,127 @@ watch(searchTerm, () => {
   font-weight: bold;
   color: #3186d6;
   margin: 0;
+}
+
+.latest-comment {
+  background-color: #77f3ff;
+  padding: 10px;
+  border-radius: 10px;
+  margin-top: 10px;
+}
+
+.latest-comment__title {
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.latest-comment__text {
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.latest-comment__user-info {
+  display: flex;
+  align-items: center;
+  margin-top: 5px;
+}
+
+.latest-comment__user-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+.latest-comment__user-name {
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.view-more-button {
+  padding: 10px 20px; /* Add some vertical padding */
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 17px;
+  display: flex; /* Use flexbox for centering */
+  justify-content: center; /* Horizontal center */
+  align-items: center; /* Vertical center */
+  width: 100%;
+  max-width: 110px;
+  margin: 5px auto; /* Center buttons and add spacing */
+  background: linear-gradient(-135deg, #01c2cc, #7d2ae7);
+  color: white;
+  text-align: center;
+  white-space: nowrap;
+  position: absolute;
+  top: 10px; /* Distance from the top */
+  right: 15px; /* Distance from the right */
+}
+
+.view-more-button:hover {
+  background: linear-gradient(-135deg, #7d2ae7, #01c2cc);
+  color: white;
+}
+
+.post-actions {
+  display: flex;
+  align-items: center;
+}
+/* Style for the like icon container */
+.likes {
+  margin-top: 20px;
+  margin-left: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.like-icon {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.like-icon i {
+  font-size: 24px; /* Adjust size as needed */
+  position: relative;
+  margin-right: 3px; /* Add space between icon and count */
+}
+
+.like-icon i::before {
+  content: '\f004'; /* Font Awesome heart icon code */
+  font-family: 'Font Awesome 5 Free'; /* Ensure Font Awesome font is used */
+  font-weight: 900; /* Use solid weight */
+  color: #ccc; /* Default color when not liked */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.like-icon i.fa-solid::before {
+  color: red; /* Color when liked */
+}
+
+.like-icon i.fa-regular::before {
+  color: #ccc; /* Color when not liked */
+}
+
+.like-icon i:hover::before {
+  color: darkred; /* Color on hover */
+}
+
+/* Style for the like count */
+.like-count {
+  cursor: pointer;
+  font-size: 16px; /* Adjust font size as needed */
+  color: #333; /* Adjust text color as needed */
+  margin-left: 20px;
 }
 
 .search-container {
@@ -368,15 +646,35 @@ watch(searchTerm, () => {
   border: 1px solid #3314e2;
 }
 
+.sort-container {
+  position: absolute;
+  right: 0; /* Align the sorting dropdown to the right */
+  display: flex;
+  align-items: center;
+  padding-right: 150px;
+}
+
+.sort-container label {
+  margin-right: 10px;
+}
+
+.sort-container select {
+  padding: 5px;
+  border-radius: 5px;
+  border: 1px solid #3186d6;
+}
+
 .comments-section {
   display: flex;
   align-items: center;
 }
 
 .comments-count {
-  margin-left: 5px;
-  font-size: 14px;
+  cursor: pointer;
+  font-size: 15px;
+  margin-top: 12px;
   color: #555;
+  align-self: center;
 }
 
 .new-post-button {
@@ -428,7 +726,7 @@ watch(searchTerm, () => {
   align-items: center;
   width: 100%;
   max-width: 1000px;
-  height: 250px;
+  height: 350px;
   margin: 30px auto;
   background: #fff;
   box-shadow: 0px 14px 80px rgba(119, 125, 231, 0.277);
@@ -436,11 +734,12 @@ watch(searchTerm, () => {
   overflow: hidden;
   padding: 20px;
   border: 0px solid #3186d6; /* Blue border */
+  position: relative;
 }
 
 .article-card__img {
   width: 25%;
-  height: 150px;
+  height: 200px;
   overflow: hidden;
   margin-right: 30px;
 }
@@ -530,7 +829,7 @@ watch(searchTerm, () => {
 
 .comment-icon {
   margin-top: 10px;
-  margin-right: 20px;
+  margin-right: 8px;
   width: 20px;
   height: 20px;
 }

@@ -18,6 +18,8 @@
     "bootstrap": "^5.3.3",
     "get-google-fonts": "^1.2.2",
     "google-fonts": "^1.0.0",
+    "lodash": "^4.17.21",
+    "lodash.debounce": "^4.0.8",
     "sweetalert2": "^11.12.4",
     "swiper": "^11.1.10",
     "vue": "^3.4.29",
