@@ -462,7 +462,7 @@ onMounted(() => {
 }
 
 .latest-comment {
-  background-color: #77f3ff;
+  background-color: #b1f8ff;
   padding: 10px;
   border-radius: 10px;
   margin-top: 10px;
