@@ -344,7 +344,7 @@ onMounted(() => {
 .article-card__img img {
   width: 100%; /* Ensure the image fills the width of its container */
   max-width: 100%; /* Prevent the image from growing beyond its container width */
-  max-height: 400px; /* Set a maximum height to prevent excessively tall images */
+  max-height: 300px; /* Set a maximum height to prevent excessively tall images */
   object-fit: cover; /* Ensure the image covers the container without stretching */
   border-radius: 8px; /* Match the border radius of the card */
   margin-bottom: 15px; /* Space between image and content */

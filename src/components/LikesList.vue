@@ -8,7 +8,8 @@
             <tr v-for="like in likes" :key="like.id">
               <td>
                 <div class="user">
-                  <!-- <span class="material-symbols-outlined"> account_circle </span> -->
+                  <!-- <span class="material-symbols-outlined" aria-hidden="true">account_circle</span> -->
+
                   <span class="article-card__author">{{ like.name }}</span>
                 </div>
               </td>
