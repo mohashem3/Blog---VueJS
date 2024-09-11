@@ -1,5 +1,5 @@
 <template>
-  <div v-if="showPopup" class="overlay" @click.self="closePopup">
+  <div v-if="props.showPopup" class="overlay" @click.self="closePopup">
     <div class="wrapper animate">
       <div class="title">{{ isEditing ? 'Edit Post' : 'Add Post' }}</div>
       <form @submit.prevent="submitPost">
@@ -12,7 +12,6 @@
           <label>Enter Article Content</label>
         </div>
         <div class="file-upload">
-          <!-- <button class="file-upload-btn" type="button" @click="triggerFileInput">Add Image</button> -->
           <div class="image-upload-wrap">
             <input
               class="file-upload-input"
@@ -38,19 +37,34 @@
 import { ref, defineProps, defineEmits, watch } from 'vue'
 import axios from 'axios'
 import Swal from 'sweetalert2'
+import type { PostList } from '../types/types'
 
-const props = defineProps({
-  showPopup: Boolean,
-  postData: Object
-})
+// Define props
+const props = defineProps<{
+  showPopup: boolean
+  postData: PostList | null
+}>()
 
-const emit = defineEmits(['update:showPopup', 'post-added'])
+// Define emits
+const emit = defineEmits<{
+  (e: 'update:showPopup', value: boolean): void
+  (e: 'post-added', post: PostList): void
+}>()
 
-const title = ref('')
-const content = ref('')
+// Define refs
+const fileInput = ref<HTMLInputElement | null>(null) // Define ref for file input
+
+// Method to close the popup
+const closePopup = () => {
+  emit('update:showPopup', false)
+}
+
+const title = ref<string>('')
+const content = ref<string>('')
 const imageSrc = ref<string | null>(null)
-const loading = ref(false)
-const isEditing = ref(false)
+const loading = ref<boolean>(false)
+const isEditing = ref<boolean>(false)
+const imageFile = ref<File | null>(null)
 
 watch(
   () => props.postData,
@@ -58,7 +72,7 @@ watch(
     if (newVal) {
       title.value = newVal.title
       content.value = newVal.content
-      imageSrc.value = newVal.image // Set the image if editing
+      imageSrc.value = newVal.image
       isEditing.value = true
     } else {
       title.value = ''
@@ -70,50 +84,64 @@ watch(
 )
 
 const submitPost = async () => {
+  if (loading.value) return // Prevent multiple submissions
+
+  loading.value = true
+  const token = localStorage.getItem('authToken')
+  if (!token) {
+    console.error('No auth token found')
+    loading.value = false
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('title', title.value)
+  formData.append('content', content.value)
+
+  if (imageFile.value) {
+    formData.append('image', imageFile.value)
+    formData.append('image_thumb', imageFile.value)
+  }
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'multipart/form-data'
+  }
+
   try {
-    loading.value = true
-    const token = localStorage.getItem('authToken')
-    if (!token) {
-      console.error('No auth token found')
-      return
-    }
-
-    const formData = new FormData()
-    formData.append('title', title.value)
-    formData.append('content', content.value)
-
-    if (imageFile.value) {
-      formData.append('image', imageFile.value) // Append the file for 'img'
-      formData.append('image_thumb', imageFile.value) // Append the file for 'img_thumb'
-    }
-
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'multipart/form-data' // Important for file uploads
-    }
-
+    let updatedPost: PostList
     if (isEditing.value) {
-      await axios.patch(
-        `https://interns-blog.nafistech.com/api/posts/${props.postData.slug}`,
-        formData,
-        { headers }
-      )
-      Swal.fire({
-        icon: 'success',
-        title: 'Post Updated!',
-        text: 'Your post has been successfully updated.'
-      })
+      if (props.postData) {
+        // Update the post
+        const response = await axios.patch(
+          `https://interns-blog.nafistech.com/api/posts/${props.postData.slug}`,
+          formData,
+          { headers }
+        )
+        updatedPost = response.data.data
+        Swal.fire({
+          icon: 'success',
+          title: 'Post Updated!',
+          text: 'Your post has been successfully updated.'
+        })
+      } else {
+        console.error('No post data available for editing')
+        return
+      }
     } else {
-      await axios.post('https://interns-blog.nafistech.com/api/posts', formData, { headers })
+      // Add a new post
+      const response = await axios.post('https://interns-blog.nafistech.com/api/posts', formData, {
+        headers
+      })
+      updatedPost = response.data.data
       Swal.fire({
         icon: 'success',
         title: 'Post Added!',
         text: 'Your post has been successfully added.'
       })
     }
-
-    emit('update:showPopup', false)
-    emit('post-added')
+    emit('post-added', updatedPost) // Emit updated/newly added post
+    closePopup() // Ensure popup closes after the operation
   } catch (error) {
     console.error('Error saving post:', error)
     Swal.fire({
@@ -130,8 +158,6 @@ const cancel = () => {
   emit('update:showPopup', false)
 }
 
-const imageFile = ref<File | null>(null)
-
 const readURL = (event: Event) => {
   const input = event.target as HTMLInputElement
   if (input.files && input.files[0]) {
@@ -140,22 +166,20 @@ const readURL = (event: Event) => {
 
     const reader = new FileReader()
     reader.onload = (e) => {
-      imageSrc.value = e.target?.result as string // Show preview
+      imageSrc.value = e.target?.result as string
     }
     reader.readAsDataURL(file)
   } else {
-    removeUpload() // Handle case when no file is selected
+    removeUpload()
   }
 }
 
 const removeUpload = () => {
   imageSrc.value = null
-  ;(refs.fileInput as HTMLInputElement).value = ''
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
   imageFile.value = null
-}
-
-const triggerFileInput = () => {
-  ;(refs.fileInput as HTMLInputElement).click()
 }
 </script>
 

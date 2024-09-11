@@ -1,5 +1,5 @@
 <template>
-  <div v-if="showPopup" class="overlay" @click.self="closePopup">
+  <div v-if="props.showPopup" class="overlay" @click.self="closePopup">
     <div class="wrapper animate">
       <div class="title">SIGN UP</div>
       <form ref="form" @submit.prevent="validateForm">
@@ -55,24 +55,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onBeforeRouteEnter } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Swal from 'sweetalert2'
 import axios from 'axios'
+import type { User, Register } from '../types/types.ts' // Import the Register type
 
-const props = defineProps({
-  showPopup: Boolean
-})
+const props = defineProps<{
+  showPopup: boolean
+}>()
 
-const emit = defineEmits(['update:showPopup'])
+const emit = defineEmits<{
+  (event: 'update:showPopup', value: boolean): void
+}>()
 
 const router = useRouter()
 
-const name = ref('')
-const email = ref('')
-const password = ref('')
-const confirmpassword = ref('')
-const loading = ref(false)
+const name = ref<string>('')
+const email = ref<string>('')
+const password = ref<string>('')
+const confirmpassword = ref<string>('')
+const loading = ref<boolean>(false)
 
 const validateForm = () => {
   const form = document.forms[0] as HTMLFormElement
@@ -93,22 +96,32 @@ const validateForm = () => {
 }
 
 const signup = async () => {
-  loading.value = true
+  loading.value = true // Set loading state
 
   try {
-    const requestData = {
-      name: name.value,
+    const requestData: Register = {
       email: email.value,
+      name: name.value,
       password: password.value,
       password_confirmation: confirmpassword.value
     }
 
-    const response = await axios.post(
+    // Send signup request
+    const response = await axios.post<{ token: string }>(
       'https://interns-blog.nafistech.com/api/register',
       requestData
     )
-    const token = response.data.token
-    localStorage.setItem('authToken', token)
+
+    const { token } = response.data
+    localStorage.setItem('authToken', token) // Save token
+
+    // Fetch user data using the obtained token
+    const userResponse = await axios.get<User>('https://interns-blog.nafistech.com/api/user', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+
+    const user = userResponse.data
+    localStorage.setItem('user', JSON.stringify(user)) // Save user object in localStorage
 
     Swal.fire({
       title: 'Success',
@@ -116,14 +129,20 @@ const signup = async () => {
       icon: 'success',
       confirmButtonText: 'OK'
     }).then(() => {
-      emit('update:showPopup', false)
-      router.go(0)
+      emit('update:showPopup', false) // Close signup popup
+      router.go(0) // Refresh the page
     })
   } catch (error) {
     let errorMessage = 'Failed to create account.'
-    if (error.response && error.response.data.message) {
-      errorMessage = error.response.data.message
+
+    if (axios.isAxiosError(error)) {
+      if (error.response && error.response.data.message) {
+        errorMessage = error.response.data.message
+      }
+    } else {
+      console.error('Unexpected error:', error)
     }
+
     Swal.fire({
       title: 'Error',
       text: errorMessage,
@@ -131,7 +150,7 @@ const signup = async () => {
       confirmButtonText: 'OK'
     })
   } finally {
-    loading.value = false
+    loading.value = false // Reset loading state
   }
 }
 

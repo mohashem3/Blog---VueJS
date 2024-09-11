@@ -1,5 +1,5 @@
 <template>
-  <div v-if="showPopup" class="overlay" @click.self="closePopup">
+  <div v-if="props.showPopup" class="overlay" @click.self="closePopup">
     <div class="wrapper animate">
       <div class="title">LOG IN</div>
       <form @submit.prevent="login">
@@ -14,9 +14,6 @@
         <div class="field login-button">
           <input type="submit" :disabled="loading" value="Login" />
         </div>
-        <!-- <div class="signup-link">
-          Not a member? <a href="#" @click.prevent="openSignUp">Sign Up now</a>
-        </div> -->
       </form>
     </div>
   </div>
@@ -26,15 +23,18 @@
 import { ref, defineProps, defineEmits } from 'vue'
 import axios from 'axios'
 import Swal from 'sweetalert2'
+import type { Login } from '../types/types.ts' // Import the Login type
 
-// Define props
-const props = defineProps({
-  showPopup: Boolean
-  // showSignUpPopup: Boolean
-})
+// Define props using TypeScript
+const props = defineProps<{
+  showPopup: boolean
+}>()
 
 // Define emits for communicating with the parent component
-const emit = defineEmits(['update:showPopup', 'login-success'])
+const emit = defineEmits<{
+  (event: 'update:showPopup', value: boolean): void
+  (event: 'login-success'): void
+}>()
 
 // Reactive state variables
 const email = ref<string>('')
@@ -42,48 +42,58 @@ const password = ref<string>('')
 const loading = ref<boolean>(false)
 
 // Login function
-const login = () => {
-  axios
-    .post('https://interns-blog.nafistech.com/api/login', {
+const login = async () => {
+  loading.value = true // Set loading state
+
+  try {
+    const loginPayload: Login = {
       email: email.value,
       password: password.value
-    })
-    .then((response) => {
-      const { token } = response.data
-      localStorage.setItem('authToken', token) // Save token
+    }
 
-      emit('update:showPopup', false) // Close login popup
-      emit('login-success') // Notify parent component (NavBar)
+    const response = await axios.post<{ token: string }>(
+      'https://interns-blog.nafistech.com/api/login',
+      loginPayload
+    )
 
-      Swal.fire({
-        icon: 'success', // The icon type: 'success', 'error', 'warning', 'info', 'question'
-        title: 'LogIn Successful!', // The title of the alert
-        text: 'You have successfully logged in.', // The text inside the alert
-        showConfirmButton: true // Whether to show the 'OK' button
-      }).then(() => {
-        window.location.reload() // Refresh the page after clicking OK
-      })
+    const { token } = response.data
+    localStorage.setItem('authToken', token) // Save token
+
+    // Fetch user data
+    const userResponse = await axios.get('https://interns-blog.nafistech.com/api/user', {
+      headers: { Authorization: `Bearer ${token}` }
     })
-    .catch(() => {
-      Swal.fire({
-        icon: 'error', // The icon type: 'success', 'error', 'warning', 'info', 'question'
-        title: 'LogIn Failed', // The title of the alert
-        text: 'Invalid email or password.', // The text inside the alert
-        showConfirmButton: true // Whether to show the 'OK' button
-      })
+
+    const user = userResponse.data // Save the whole user object
+    localStorage.setItem('user', JSON.stringify(user)) // Save user object in localStorage
+
+    emit('update:showPopup', false) // Close login popup
+    emit('login-success') // Notify parent component (NavBar)
+
+    await Swal.fire({
+      icon: 'success',
+      title: 'LogIn Successful!',
+      text: 'You have successfully logged in.',
+      showConfirmButton: true
     })
+
+    window.location.reload() // Refresh the page after clicking OK
+  } catch {
+    await Swal.fire({
+      icon: 'error',
+      title: 'LogIn Failed',
+      text: 'Invalid email or password.',
+      showConfirmButton: true
+    })
+  } finally {
+    loading.value = false // Reset loading state
+  }
 }
 
 // Close popup function
 const closePopup = () => {
   emit('update:showPopup', false)
 }
-
-// Uncomment and use if needed
-// const openSignUp = () => {
-//   emit('update:showPopup', false);
-//   emit('open-signup'); // Ensure this matches the event name in App.vue
-// };
 </script>
 
 <style scoped>

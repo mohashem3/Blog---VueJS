@@ -21,6 +21,7 @@ const toggleSignupPopup = () => {
 
 const logout = () => {
   localStorage.removeItem('authToken')
+  localStorage.removeItem('user') // Remove the user object from local storage
   isLoggedIn.value = false
   Swal.fire({
     icon: 'success',

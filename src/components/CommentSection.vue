@@ -24,14 +24,10 @@
 
       <h3>Comments</h3>
       <div v-if="comments.length" class="comments-list">
-        <div
-          v-for="(comment, index) in comments.slice().reverse()"
-          :key="index"
-          class="comment-card"
-        >
+        <div v-for="comment in comments.slice().reverse()" :key="comment.id" class="comment-card">
           <div class="comment-card__header">
             <span class="material-symbols-outlined">account_circle</span>
-            <span class="comment-card__author">{{ comment.user.name }}</span>
+            <span class="comment-card__author">{{ comment.user?.name }}</span>
           </div>
           <div class="comment-card__content">
             <p
@@ -68,10 +64,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, nextTick } from 'vue'
-import axios from 'axios'
+import { ref, nextTick, watch, onMounted } from 'vue'
 import Swal from 'sweetalert2'
 import cancelIcon from '../assets/img/cancel-icon.svg'
+import type { Comment, User } from '../types/types.ts'
+import axios from 'axios'
 
 const props = defineProps({
   slug: {
@@ -81,52 +78,58 @@ const props = defineProps({
   isOpen: {
     type: Boolean,
     required: true
+  },
+  comments: {
+    type: Array as () => Comment[],
+    default: () => []
+  },
+  postOwnerId: {
+    type: Number,
+    required: true
   }
 })
 
-const commentContent = ref('')
-const comments = ref<any[]>([])
-const isEditing = ref(false)
+const emit = defineEmits(['close', 'update-comments'])
+
+const commentContent = ref<string>('')
+const isEditing = ref<boolean>(false)
 const editedCommentId = ref<number | null>(null)
 const userId = ref<number | null>(null)
-const postOwnerId = ref<number | null>(null)
 
-// Fetch the logged-in user's ID and the post owner's ID
+const getAuthToken = () => {
+  const token = localStorage.getItem('authToken')
+  if (!token) {
+    console.error('No auth token found')
+  }
+  return token
+}
+
 const fetchUserInfo = async () => {
   try {
-    const token = localStorage.getItem('authToken')
-    if (!token) {
-      console.error('No auth token found')
-      return
-    }
+    const token = getAuthToken()
+    if (!token) return
 
-    const userResponse = await axios.get('https://interns-blog.nafistech.com/api/user', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    userId.value = userResponse.data.id
-
-    const postResponse = await axios.get(
-      `https://interns-blog.nafistech.com/api/posts/${props.slug}`,
-      {
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      const user: User = JSON.parse(storedUser)
+      userId.value = user.id
+    } else {
+      const userResponse = await axios.get<User>('https://interns-blog.nafistech.com/api/user', {
         headers: { Authorization: `Bearer ${token}` }
-      }
-    )
-    postOwnerId.value = postResponse.data.data.user.id
-    comments.value = postResponse.data.data.comments || []
+      })
+      userId.value = userResponse.data.id
+    }
   } catch (error) {
-    console.error('Error fetching user info or comments:', error)
+    console.error('Error fetching user info:', error)
   }
 }
 
 const submitComment = async () => {
   try {
-    const token = localStorage.getItem('authToken')
-    if (!token) {
-      console.error('No auth token found')
-      return
-    }
+    const token = getAuthToken()
+    if (!token) return
 
-    const response = await axios.post(
+    const response = await axios.post<{ data: Comment }>(
       `https://interns-blog.nafistech.com/api/posts/${props.slug}/comments`,
       { content: commentContent.value },
       {
@@ -134,12 +137,12 @@ const submitComment = async () => {
       }
     )
 
-    // If the comment was added successfully
     if (response.data.data) {
-      commentContent.value = '' // Clear input field
+      const newComment = response.data.data
+      newComment.user = { id: userId.value } as User
 
-      // Refresh comments after successfully adding the new one
-      await fetchUserInfo() // Re-fetch comments from API to ensure it's up to date
+      emit('update-comments', [...props.comments, newComment]) // Emit updated comments
+      commentContent.value = ''
     } else {
       console.error('Failed to add comment')
     }
@@ -148,9 +151,9 @@ const submitComment = async () => {
   }
 }
 
-const startEdit = (comment: any) => {
+const startEdit = (comment: Comment) => {
   isEditing.value = true
-  editedCommentId.value = comment.id
+  editedCommentId.value = comment.id ?? null
   commentContent.value = comment.content
   nextTick(() => {
     const inputElement = document.querySelector('input') as HTMLInputElement
@@ -163,11 +166,8 @@ const updateComment = async () => {
   if (editedCommentId.value === null) return
 
   try {
-    const token = localStorage.getItem('authToken')
-    if (!token) {
-      console.error('No auth token found')
-      return
-    }
+    const token = getAuthToken()
+    if (!token) return
 
     await axios.put(
       `https://interns-blog.nafistech.com/api/posts/${props.slug}/comments/${editedCommentId.value}`,
@@ -177,10 +177,11 @@ const updateComment = async () => {
       }
     )
 
-    const commentToUpdate = comments.value.find((c) => c.id === editedCommentId.value)
-    if (commentToUpdate) {
-      commentToUpdate.content = commentContent.value
-    }
+    const updatedComments = props.comments.map((comment) =>
+      comment.id === editedCommentId.value ? { ...comment, content: commentContent.value } : comment
+    )
+    emit('update-comments', updatedComments)
+
     commentContent.value = ''
     isEditing.value = false
     editedCommentId.value = null
@@ -216,11 +217,8 @@ const deleteComment = async (commentId: number) => {
 
   if (isConfirmed) {
     try {
-      const token = localStorage.getItem('authToken')
-      if (!token) {
-        console.error('No auth token found')
-        return
-      }
+      const token = getAuthToken()
+      if (!token) return
 
       await axios.delete(
         `https://interns-blog.nafistech.com/api/posts/${props.slug}/comments/${commentId}`,
@@ -229,34 +227,47 @@ const deleteComment = async (commentId: number) => {
         }
       )
 
-      comments.value = comments.value.filter((c) => c.id !== commentId)
+      const updatedComments = props.comments.filter((c) => c.id !== commentId)
+      emit('update-comments', updatedComments)
     } catch (error) {
       console.error('Error deleting comment:', error)
     }
   }
 }
 
-// Determine if the logged-in user can edit the comment
-const canEditComment = (comment: any) => {
-  return comment.user.id === userId.value
+const canEditComment = (comment: Comment) => {
+  // Conditions for showing edit icon:
+  // 1. Post is mine and comment is mine
+  // 2. Post is not mine and comment is mine
+  return (
+    (props.postOwnerId === userId.value && comment.user?.id === userId.value) || // Post and comment are both owned by the user
+    (props.postOwnerId !== userId.value && comment.user?.id === userId.value) // Post is not owned by the user, but comment is
+  )
 }
 
-// Determine if the logged-in user can delete the comment
-const canDeleteComment = (comment: any) => {
-  return comment.user.id === userId.value || userId.value === postOwnerId.value
+const canDeleteComment = (comment: Comment) => {
+  // Conditions for showing delete icon:
+  // 1. Post is mine and comment is mine
+  // 2. Post is mine and comment is not mine
+  return (
+    (props.postOwnerId === userId.value && comment.user?.id === userId.value) || // Post and comment are both owned by the user
+    (props.postOwnerId === userId.value && comment.user?.id !== userId.value) ||
+    (props.postOwnerId !== userId.value && comment.user?.id === userId.value) // Post is owned by the user, but comment is not
+  )
 }
 
-onMounted(() => {
+// Fetch user info when the component is mounted or the `isOpen` prop changes
+onMounted(async () => {
   if (props.isOpen) {
-    fetchUserInfo()
+    await fetchUserInfo()
   }
 })
 
 watch(
   () => props.isOpen,
-  (newVal) => {
+  async (newVal) => {
     if (newVal) {
-      fetchUserInfo()
+      await fetchUserInfo()
     }
   }
 )

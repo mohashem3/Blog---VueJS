@@ -1,15 +1,13 @@
 <template>
-  <div v-if="showPopup" class="overlay" @click.self="closePopup">
+  <div v-if="props.showPopup" class="overlay" @click.self="closePopup">
     <div class="wrapper animate">
       <div class="title">LIKES LIST</div>
       <form>
         <div class="table-container">
           <table class="likes-table">
-            <tr v-for="like in likes" :key="like.id">
+            <tr v-for="like in props.likes" :key="like.id">
               <td>
                 <div class="user">
-                  <!-- <span class="material-symbols-outlined" aria-hidden="true">account_circle</span> -->
-
                   <span class="article-card__author">{{ like.name }}</span>
                 </div>
               </td>
@@ -23,13 +21,16 @@
 
 <script setup lang="ts">
 import { defineProps, defineEmits } from 'vue'
+import type { Like } from '../types/types.ts'
 
-const props = defineProps({
-  showPopup: Boolean,
-  likes: Array as () => { id: number; name: string }[] // Ensure the type matches
-})
+const props = defineProps<{
+  showPopup: boolean
+  likes: Like[]
+}>()
 
-const emit = defineEmits(['update:showPopup'])
+const emit = defineEmits<{
+  (event: 'update:showPopup', value: boolean): void
+}>()
 
 const closePopup = () => {
   emit('update:showPopup', false)

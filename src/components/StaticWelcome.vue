@@ -13,21 +13,17 @@
 
 <script setup lang="ts">
 import { ref, onMounted, defineEmits } from 'vue'
-import axios from 'axios'
 
 const userName = ref('')
 const emit = defineEmits(['showAddPostPopup'])
 
-const fetchUserName = async () => {
-  try {
-    const response = await axios.get('https://interns-blog.nafistech.com/api/user', {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('authToken')}`
-      }
-    })
-    userName.value = response.data.name
-  } catch (error) {
-    console.error('Error fetching user data:', error)
+const fetchUserName = () => {
+  const user = localStorage.getItem('user')
+  if (user) {
+    const userData = JSON.parse(user)
+    userName.value = userData.name
+  } else {
+    console.error('User data not found in local storage')
   }
 }
 

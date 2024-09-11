@@ -4,3 +4,11 @@
 body {
   overflow-x: hidden;
 }
+
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 1,
+    'wght' 4000,
+    'GRAD' 110,
+    'opsz' 24;
+}

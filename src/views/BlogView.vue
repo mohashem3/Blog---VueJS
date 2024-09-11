@@ -10,7 +10,7 @@
       <h3 class="article-card__title">{{ post.title }}</h3>
       <div class="post-actions">
         <img
-          v-if="isPostOwner(post.authorId)"
+          v-if="isPostOwner(post.user.id)"
           @click.stop="openEditPostPopup"
           width="18"
           height="18"
@@ -19,7 +19,7 @@
           class="edit-icon"
         />
         <img
-          v-if="isPostOwner(post.authorId)"
+          v-if="isPostOwner(post.user.id)"
           @click.stop="deletePost(post.slug)"
           width="21"
           height="21"
@@ -28,14 +28,12 @@
           class="edit-icon"
         />
         <img
-          @click="toggleCommentSection(post.slug)"
+          @click="toggleCommentSection"
           :src="commentIcon"
           alt="Comment Icon"
           class="comment-icon"
         />
-        <span class="comments-count">{{ post.comments_count }}</span>
       </div>
-
       <!-- Heart Icon for Likes -->
       <div class="likes">
         <span @click="toggleLike(post)" class="like-icon">
@@ -58,7 +56,7 @@
         <p class="article-card__text">{{ post.content }}</p>
         <div class="user">
           <span class="material-symbols-outlined"> account_circle </span>
-          <span class="article-card__author">{{ post.author }}</span>
+          <span class="article-card__author">{{ post.user.name }}</span>
         </div>
       </div>
     </div>
@@ -69,20 +67,24 @@
       :postData="currentPost"
       :mode="mode"
       @update:showPopup="showAddPostPopup = $event"
-      @postUpdated="fetchPost"
+      @post-added="fetchPost"
     />
 
     <!-- CommentSection Popup -->
     <CommentSection
+      v-if="isCommentSectionOpen"
+      :comments="post ? post.comments : []"
+      :slug="post ? post.slug : ''"
       :isOpen="isCommentSectionOpen"
-      :slug="activeSlug"
+      :postOwnerId="post ? post.user.id : 0"
       @close="closeCommentSection"
-      @commentAdded="fetchPost"
+      @update-comments="updateCommentsList"
     />
 
+    <!-- LikesList Popup -->
     <LikesList
       :showPopup="showLikesListPopup"
-      :likes="post.likeslist"
+      :likes="updatedLikes"
       @update:showPopup="showLikesListPopup = $event"
     />
   </div>
@@ -99,68 +101,24 @@ import { useRouter, useRoute } from 'vue-router'
 import LikesList from '@/components/LikesList.vue'
 import defaultImage from '../assets/img/empty-img.png'
 
+// Import interfaces from types.ts
+import type { PostList, Comment, Like } from '../types/types'
+
+const post = ref<PostList | null>(null)
+const showAddPostPopup = ref(false)
+const mode = ref<'add' | 'edit'>('add')
+const currentPost = ref<PostList | null>(null)
+const isCommentSectionOpen = ref(false)
+const showLikesListPopup = ref(false)
 const router = useRouter()
 const route = useRoute()
 
-const post = ref({
-  image: '',
-  comments_count: 0,
-  author: '',
-  authorId: 0,
-  likes_count: 0,
-  liked_by_user: false,
-  likeslist: [] // Initialize as an empty array
-})
-const showAddPostPopup = ref(false)
-const mode = ref<'add' | 'edit'>('add')
-const currentPost = ref<any>(null)
-const isCommentSectionOpen = ref(false)
-const activeSlug = ref<string | null>(null)
-const currentUserId = ref<string>('')
+// Likes array to store the list of users who liked the post
+const updatedLikes = ref<Like[]>([])
 
-const showLikesListPopup = ref(false)
-
-const toggleLikesListPopup = () => {
-  showLikesListPopup.value = !showLikesListPopup.value
-}
-
-const toggleLike = async (post: { slug: string; liked_by_user: boolean; likes_count: number }) => {
-  if (post) {
-    // Optimistically update the like state
-    post.liked_by_user = !post.liked_by_user
-    post.likes_count += post.liked_by_user ? 1 : -1
-
-    try {
-      const token = localStorage.getItem('authToken')
-      if (!token) {
-        console.error('No auth token found')
-        return
-      }
-
-      // Send request to the server to toggle the like
-      const response = await axios.post(
-        `https://interns-blog.nafistech.com/api/posts/like/${post.slug}`,
-        null,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      )
-
-      // Check if the response status is not OK
-      if (response.status !== 200) {
-        // Revert the like state if there's an error
-        post.liked_by_user = !post.liked_by_user
-        post.likes_count += post.liked_by_user ? -1 : 1
-        console.error('Error toggling like: Unexpected response status', response.status)
-      }
-    } catch (error) {
-      // Revert the like state if there's an error
-      post.liked_by_user = !post.liked_by_user
-      post.likes_count += post.liked_by_user ? -1 : 1
-      console.error('Error toggling like:', error)
-    }
-  }
-}
+// Retrieve user object from local storage
+const userFromStorage = localStorage.getItem('user')
+const currentUser = ref(userFromStorage ? JSON.parse(userFromStorage) : null)
 
 const fetchPost = async () => {
   try {
@@ -171,35 +129,28 @@ const fetchPost = async () => {
       return
     }
 
-    // Fetch current user
-    const userResponse = await axios.get('https://interns-blog.nafistech.com/api/user', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    currentUserId.value = userResponse.data.id
-
     // Fetch post details
     const response = await axios.get(`https://interns-blog.nafistech.com/api/posts/${slug}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
 
-    post.value = {
-      ...response.data.data,
-      image: response.data.data.image, // Use thumbnail image for smaller view
-      comments_count: response.data.data.comments_count,
-      author: response.data.data.user.name, // Author's name
-      authorId: response.data.data.user.id, // Author's ID for ownership check
-      likes_count: response.data.data.likes_count, // Mapped likes count
-      liked_by_user: response.data.data.liked_by_user, // Mapped liked by user
-      likeslist: response.data.data.likes
-    }
+    post.value = response.data.data
+    updatedLikes.value = response.data.data.likes // Store the likes array
   } catch (error) {
-    console.error('Error fetching post:', error)
+    console.error('Error fetching post:', (error as Error).message)
     Swal.fire('Error!', 'Failed to fetch the post. Please try again.', 'error')
   }
 }
 
-const isPostOwner = (authorId: string) => {
-  return authorId === currentUserId.value
+const updateCommentsList = (updatedComments: Comment[]) => {
+  // Assuming `post` is reactive
+  if (post.value) {
+    post.value.comments = updatedComments
+  }
+}
+
+const isPostOwner = (authorId: number) => {
+  return authorId === (currentUser.value ? currentUser.value.id : -1)
 }
 
 const openEditPostPopup = () => {
@@ -236,14 +187,59 @@ const deletePost = async (slug: string) => {
       Swal.fire('Deleted!', 'Your post has been deleted.', 'success')
       router.push('/')
     } catch (error) {
-      console.error('Error deleting post:', error)
+      console.error('Error deleting post:', (error as Error).message)
       Swal.fire('Error!', 'Failed to delete the post. Please try again.', 'error')
     }
   }
 }
 
-const toggleCommentSection = (slug: string) => {
-  activeSlug.value = slug
+const toggleLike = async (post: PostList) => {
+  if (!post || !currentUser.value) return
+
+  // Optimistically update the like state
+  const previousLikedState = post.liked_by_user
+  const previousLikesCount = post.likes_count
+
+  post.liked_by_user = !post.liked_by_user
+  post.likes_count += post.liked_by_user ? 1 : -1
+
+  try {
+    const token = localStorage.getItem('authToken')
+    if (!token) {
+      console.error('No auth token found')
+      return
+    }
+
+    // Send request to the server to toggle the like
+    const response = await axios.post(
+      `https://interns-blog.nafistech.com/api/posts/like/${post.slug}`,
+      null,
+      {
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    )
+
+    if (response.status !== 200) {
+      throw new Error('Failed to toggle like')
+    }
+
+    // Update the likes array if the like state changes successfully
+    if (post.liked_by_user) {
+      updatedLikes.value.push(currentUser.value)
+    } else {
+      updatedLikes.value = updatedLikes.value.filter((like) => like.id !== currentUser.value.id)
+    }
+  } catch (error) {
+    // Revert the UI changes if the API call fails
+    post.liked_by_user = previousLikedState
+    post.likes_count = previousLikesCount
+
+    console.error('Error toggling like:', (error as Error).message)
+    Swal.fire('Error!', 'Failed to toggle the like. Please try again.', 'error')
+  }
+}
+
+const toggleCommentSection = () => {
   isCommentSectionOpen.value = !isCommentSectionOpen.value
 }
 
@@ -252,6 +248,10 @@ const closeCommentSection = () => {
 }
 
 const postTitle = computed(() => `Post Details`)
+
+const toggleLikesListPopup = () => {
+  showLikesListPopup.value = !showLikesListPopup.value
+}
 
 onMounted(() => {
   fetchPost()
