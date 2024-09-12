@@ -20,7 +20,6 @@
         type="text"
         placeholder="Search articles..."
         class="search-input"
-        @input="debouncedFetchArticles"
       />
 
       <button class="new-post-button" @click="openAddPostPopup">
@@ -30,7 +29,7 @@
     </div>
 
     <!-- Article Cards -->
-    <div v-for="article in articles" :key="article.slug" class="article-card">
+    <div v-for="article in filteredArticles" :key="article.slug" class="article-card">
       <div class="article-card__img" @click="viewArticle(article.slug)">
         <img :src="article.image ? article.image : defaultImage" alt="Article Image" />
       </div>
@@ -89,30 +88,16 @@
       </div>
     </div>
 
-    <!-- Pagination -->
+    <!-- Pagination Controls -->
     <div class="pagination">
-      <button
-        v-if="pagination.prev"
-        @click="fetchArticles(null, pagination.prev)"
-        class="pagination-button"
-      >
-        Previous
-      </button>
       <button
         v-for="page in pagination.pages"
         :key="page.label"
-        @click="fetchArticles(null, page.url)"
-        :class="['pagination-button', page.active ? 'active' : '']"
-      >
-        {{ page.label }}
-      </button>
-      <button
-        v-if="pagination.next"
-        @click="fetchArticles(null, pagination.next)"
-        class="pagination-button"
-      >
-        Next
-      </button>
+        @click="changePage(page.url?.split('page=')[1])"
+        v-html="page.label"
+        :class="{ active: page.active }"
+        :disabled="page.active"
+      ></button>
     </div>
 
     <!-- Add Post Form Popup -->
@@ -126,55 +111,98 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import axios from 'axios'
 import Swal from 'sweetalert2'
 import addIcon from '../assets/img/add-icon.svg'
 import commentIcon from '../assets/img/comment-icon.svg'
-import { useRouter } from 'vue-router'
 import defaultImage from '../assets/img/empty-img.png'
+import { useRouter } from 'vue-router'
 import AddPost from './AddPost.vue'
-import type { PostList, Pagination, PostListResponse } from '../types/types'
-import { defaultPagination } from '../types/types'
+import type { PostList, PostListResponse, Pagination } from '../types/types'
 
 const latestPostsTitle = computed(() => `Latest Posts (${totalPostsCount.value})`)
 
 const articles = ref<PostList[]>([])
 const currentPost = ref<PostList | null>(null)
-const currentPage = ref<number>(1)
-const articlesPerPage = 15
-const pagination = ref<Pagination>(defaultPagination)
 const currentUserId = ref<number>() // Ref to store the current user ID
 const showAddPostPopup = ref<boolean>(false)
 const mode = ref<'add' | 'edit'>('add')
 
 const totalPostsCount = ref<number>(0)
-
 const searchTerm = ref<string>('')
 const sortOption = ref<'latest' | 'oldest'>('latest')
+const router = useRouter()
 
-// Utility function for debouncing
-const debounce = (func: Function, delay: number) => {
-  let timeoutId: number | undefined
-  return (...args: any[]) => {
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId)
-    }
-    timeoutId = window.setTimeout(() => func(...args), delay)
-  }
+const pagination = ref<Pagination>({
+  prev: null,
+  next: null,
+  pages: [],
+  currentPage: 1,
+  lastPage: 1,
+  total: 0
+})
+
+const handleSortChange = (event: Event) => {
+  const target = event.target as HTMLSelectElement
+  sortOption.value = target.value as 'latest' | 'oldest'
+  fetchArticles(pagination.value.currentPage)
 }
 
-const debouncedFetchArticles = debounce(() => {
-  fetchArticles()
-}, 500)
+const filteredArticles = computed(() => {
+  const term = searchTerm.value.toLowerCase()
+  return articles.value.filter(
+    (article) =>
+      article.title.toLowerCase().includes(term) ||
+      article.content.toLowerCase().includes(term) ||
+      article.user.name.toLowerCase().includes(term)
+  )
+})
 
-const router = useRouter()
+const fetchArticles = async (page: number = 1) => {
+  try {
+    const token = localStorage.getItem('authToken')
+    if (!token) {
+      console.error('No auth token found')
+      return
+    }
+
+    const response = await axios.get<PostListResponse>(
+      `https://interns-blog.nafistech.com/api/posts`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        params: {
+          page,
+          sort: sortOption.value === 'latest' ? 'desc' : 'asc',
+          search: searchTerm.value
+        }
+      }
+    )
+
+    const data = response.data
+    console.log('Fetched data:', data)
+
+    articles.value = data.data
+    pagination.value = {
+      prev: data.links.prev,
+      next: data.links.next,
+      pages: data.meta.links,
+      currentPage: data.meta.current_page,
+      lastPage: data.meta.last_page,
+      total: data.meta.total
+    }
+    totalPostsCount.value = data.meta.total
+  } catch (error) {
+    console.error('Error fetching articles:', error)
+  }
+}
 
 const viewArticle = (slug: string) => {
   router.push({ name: 'BlogView', params: { slug } })
 }
 
-// Toggle like action
 const toggleLike = async (article: PostList) => {
   if (article) {
     article.liked_by_user = !article.liked_by_user
@@ -199,56 +227,6 @@ const toggleLike = async (article: PostList) => {
   }
 }
 
-const fetchArticles = async (
-  sortOption: 'latest' | 'oldest' | null = null,
-  url: string | null = null
-) => {
-  try {
-    const token = localStorage.getItem('authToken')
-    if (!token) {
-      console.error('No auth token found')
-      return
-    }
-
-    const baseUrl = `https://interns-blog.nafistech.com/api/posts/?page=${currentPage.value}&per_page=${articlesPerPage}`
-    const sortUrl = sortOption ? `${baseUrl}&sort=${sortOption}` : baseUrl
-    const pageUrl = url ? url : sortUrl
-
-    const response = await axios.get<PostListResponse>(pageUrl, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-
-    const data = response.data
-    console.log('Fetched data:', data)
-
-    articles.value = data.data
-    pagination.value = {
-      prev: data.links.prev,
-      next: data.links.next,
-      pages: data.meta.links.map((link) => ({
-        url: link.url,
-        label: link.label,
-        active: link.active
-      })),
-      currentPage: data.meta.current_page,
-      lastPage: data.meta.last_page,
-      total: data.meta.total
-    }
-
-    totalPostsCount.value = data.meta.total
-  } catch (error) {
-    console.error('Error fetching articles:', error)
-  }
-}
-
-const handleSortChange = (event: Event) => {
-  const target = event.target as HTMLSelectElement
-  const sortOption = target.value as 'latest' | 'oldest'
-  fetchArticles(sortOption)
-}
-
 const openAddPostPopup = () => {
   currentPost.value = null // Reset currentPost to ensure the form is cleared
   mode.value = 'add' // Set the mode to 'add'
@@ -266,10 +244,9 @@ const openEditPostPopup = (slug: string) => {
 
 const handlePostAdded = () => {
   // Handle logic after adding post
-  fetchArticles()
+  fetchArticles(pagination.value.currentPage)
 }
 
-// Check if the logged-in user is the owner of the post
 const isPostOwner = (postUserId: number) => {
   return postUserId === currentUserId.value
 }
@@ -300,7 +277,7 @@ const deletePost = async (slug: string) => {
 
       if (response.status === 200) {
         Swal.fire('Deleted!', 'Your post has been deleted.', 'success')
-        fetchArticles()
+        fetchArticles(pagination.value.currentPage)
       } else {
         throw new Error('Failed to delete the post.')
       }
@@ -311,6 +288,15 @@ const deletePost = async (slug: string) => {
   }
 }
 
+const changePage = (page: number | string) => {
+  if (typeof page === 'string') {
+    page = parseInt(page, 10)
+  }
+  if (page >= 1 && page <= pagination.value.lastPage) {
+    fetchArticles(page)
+  }
+}
+
 onMounted(() => {
   const storedUser = localStorage.getItem('user')
   if (storedUser) {
@@ -318,6 +304,14 @@ onMounted(() => {
     currentUserId.value = user.id
   }
   fetchArticles()
+})
+
+watch(searchTerm, () => {
+  fetchArticles(pagination.value.currentPage)
+})
+
+watch(sortOption, () => {
+  fetchArticles(pagination.value.currentPage)
 })
 </script>
 
@@ -617,29 +611,34 @@ onMounted(() => {
   margin: 20px 0;
 }
 
-.pagination a {
+.pagination button {
   color: #3186d6;
   padding: 8px 16px;
   margin: 0 4px;
-  text-decoration: none;
   border: 1px solid #3186d6;
   border-radius: 5px;
+  background-color: transparent;
   transition:
     background-color 0.3s,
     color 0.3s;
 }
 
-.pagination a.active {
+.pagination button.active {
   background-color: #3186d6;
   color: #fff;
   border: 1px solid #3186d6;
 }
 
-.pagination a:hover:not(.active) {
+.pagination button:hover:not(.active) {
   background-color: #3186d6;
   color: #fff;
 }
 
+.pagination button:disabled {
+  background-color: #3186d6;
+  color: #fff;
+  cursor: not-allowed;
+}
 .edit-icon {
   cursor: pointer; /* Change cursor to pointer */
   transition: transform 0.3s ease; /* Smooth transition for hover effect */

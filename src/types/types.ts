@@ -55,7 +55,7 @@ export interface PostList {
 }
 
 export interface PaginationPage {
-  url: string | null
+  url: string
   label: string
   active: boolean
 }
