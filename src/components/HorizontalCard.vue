@@ -419,6 +419,7 @@ watch(sortOption, () => {
 .edit-icon,
 .delete-icon,
 .comment-icon {
+  cursor: pointer;
   margin-right: 10px; /* Space between icons */
   display: inline-flex; /* Ensures the icons are inline and aligned properly */
   align-items: center; /* Aligns the icons vertically */

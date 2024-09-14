@@ -36,7 +36,11 @@
             >
               {{ comment.content }}
             </p>
+            <button class="show-replies-button">
+              {{ 'Show Replies' }}
+            </button>
           </div>
+
           <div class="comment-card__actions">
             <img
               v-if="canEditComment(comment)"
@@ -278,7 +282,7 @@ watch(
   position: fixed;
   right: 0;
   top: 0;
-  width: 30%;
+  width: 35%;
   height: 100%;
   background-color: #f4f4f4;
   box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
@@ -293,6 +297,24 @@ watch(
   flex-direction: column;
   height: 100%;
   position: relative; /* Ensure close button is positioned relative to this container */
+}
+
+.show-replies-button {
+  padding: 1px 10px;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 10px;
+  background: linear-gradient(-135deg, #01c2cc, #7d2ae7);
+  color: white;
+  position: absolute;
+  bottom: 10px; /* Adjusted positioning relative to each comment card */
+  left: 10px;
+}
+
+.show-replies-button:hover {
+  background: linear-gradient(-135deg, #7d2ae7, #01c2cc);
+  color: white;
 }
 
 .close-button {
@@ -383,9 +405,16 @@ watch(
 
 .comments-list {
   margin-top: 20px;
-  max-height: 300px; /* Adjust this value as needed */
+  max-height: 300px;
   overflow-y: auto;
-  padding-right: 10px; /* Adds some padding to the right to avoid overlap with the scrollbar */
+  padding-right: 10px;
+  background-color: #e0e0e0;
+  border-radius: 8px;
+  padding: 10px;
+  background-color: #acbecf;
+  display: flex; /* Enable flexbox */
+  flex-direction: column; /* Ensure items stack vertically */
+  align-items: center; /* Center items horizontally */
 }
 
 .comments-list::-webkit-scrollbar {
@@ -408,6 +437,7 @@ watch(
   width: 100%;
   max-width: 450px;
   border: 1px solid #3186d6;
+  position: relative;
 }
 
 .comment-card__header {
