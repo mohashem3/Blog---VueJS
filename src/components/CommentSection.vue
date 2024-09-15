@@ -1,9 +1,6 @@
 <template>
   <div class="comment-section">
     <div class="comment-section-sidebar">
-      <button class="close-button" @click="$emit('close')">
-        <img :src="cancelIcon" alt="Cancel Icon" class="cancel-icon" />
-      </button>
       <form @submit.prevent="submitComment(parentId)" class="comment-form">
         <div class="field">
           <input
@@ -75,11 +72,11 @@
             <div v-if="isRepliesVisible[comment.id]" class="replies-section">
               <CommentSection
                 :slug="slug"
-                :isOpen="true"
                 :comments="comment.children || []"
                 :postOwnerId="postOwnerId"
                 :parentId="comment.id"
-                isReply
+                :isReply="true"
+                :fetchPost="fetchPost"
               />
             </div>
           </div>
@@ -92,7 +89,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from 'vue'
 import Swal from 'sweetalert2'
-import cancelIcon from '../assets/img/cancel-icon.svg'
+
 import type { Comment } from '../types/types.ts'
 import axios from 'axios'
 
@@ -101,10 +98,7 @@ const props = defineProps({
     type: String,
     required: true
   },
-  isOpen: {
-    type: Boolean,
-    default: true
-  },
+
   comments: {
     type: Array as () => Comment[],
     default: () => []
@@ -120,10 +114,12 @@ const props = defineProps({
   isReply: {
     type: Boolean,
     default: false
+  },
+  fetchPost: {
+    type: Function,
+    required: true
   }
 })
-
-const emit = defineEmits(['close', 'update-comments'])
 
 const commentContent = ref<string>('')
 const isEditing = ref<boolean>(false)
@@ -132,6 +128,7 @@ const userId = ref<number | null>(null)
 const isRepliesVisible = ref<Record<number, boolean>>({})
 const commentInputRefs = ref<Record<number, HTMLInputElement | null>>({})
 
+// Computed property for the replies header text
 // Computed property for the replies header text
 const repliesHeaderText = computed(() => {
   if (props.isReply) {
@@ -160,10 +157,13 @@ const submitComment = async (parentId: number | null = null) => {
     )
 
     if (response.data.data) {
-      const newComment = response.data.data
       await nextTick() // Ensure DOM update
-      emit('update-comments', [...props.comments, newComment])
+
       commentContent.value = ''
+      // Call fetchPost from prop
+      if (props.fetchPost) {
+        props.fetchPost()
+      }
     } else {
       console.error('Failed to add comment')
     }
@@ -203,14 +203,13 @@ const updateComment = async () => {
       }
     )
 
-    const updatedComments = props.comments.map((comment) =>
-      comment.id === editedCommentId.value ? { ...comment, content: commentContent.value } : comment
-    )
-    emit('update-comments', updatedComments)
-
     commentContent.value = ''
     isEditing.value = false
     editedCommentId.value = null
+    // Call fetchPost from prop
+    if (props.fetchPost) {
+      props.fetchPost()
+    }
   } catch (error) {
     console.error('Error updating comment:', error)
   }
@@ -244,9 +243,10 @@ const deleteComment = async (commentId: number) => {
           headers: { Authorization: `Bearer ${token}` }
         }
       )
-
-      const updatedComments = props.comments.filter((c) => c.id !== commentId)
-      emit('update-comments', updatedComments)
+      // Call fetchPost from prop
+      if (props.fetchPost) {
+        props.fetchPost()
+      }
     } catch (error) {
       console.error('Error deleting comment:', error)
     }

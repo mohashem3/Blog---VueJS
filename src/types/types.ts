@@ -20,7 +20,7 @@ export interface User {
 }
 
 export interface Comment {
-  id: number // Optional when creating a comment
+  id: number
   content: string
   created_at?: string // Optional when creating a comment
   created_at_readable?: string // Optional when creating a comment

@@ -77,15 +77,11 @@
       @post-added="fetchPost"
     />
 
-    <!-- CommentSection Popup -->
     <CommentSection
-      v-if="isCommentSectionOpen"
       :comments="post ? post.comments : []"
       :slug="post ? post.slug : ''"
-      :isOpen="isCommentSectionOpen"
       :postOwnerId="post ? post.user.id : 0"
-      @close="closeCommentSection"
-      @update-comments="updateCommentsList"
+      :fetchPost="fetchPost"
     />
 
     <!-- LikesList Popup -->
@@ -115,7 +111,6 @@ const post = ref<PostList | null>(null)
 const showAddPostPopup = ref(false)
 const mode = ref<'add' | 'edit'>('add')
 const currentPost = ref<PostList | null>(null)
-const isCommentSectionOpen = ref(true)
 const showLikesListPopup = ref(false)
 const router = useRouter()
 const route = useRoute()
@@ -141,18 +136,13 @@ const fetchPost = async () => {
       headers: { Authorization: `Bearer ${token}` }
     })
 
-    post.value = response.data.data
-    updatedLikes.value = response.data.data.likes // Store the likes array
+    // Assuming response.data.data matches PostList
+    const postData: PostList = response.data.data
+    post.value = postData
+    updatedLikes.value = postData.likes
   } catch (error) {
     console.error('Error fetching post:', (error as Error).message)
     Swal.fire('Error!', 'Failed to fetch the post. Please try again.', 'error')
-  }
-}
-
-const updateCommentsList = (updatedComments: Comment[]) => {
-  // Assuming `post` is reactive
-  if (post.value) {
-    post.value.comments = updatedComments
   }
 }
 
@@ -254,10 +244,6 @@ const toggleLike = async (post: PostList) => {
     console.error('Error toggling like:', (error as Error).message)
     Swal.fire('Error!', 'Failed to toggle the like. Please try again.', 'error')
   }
-}
-
-const closeCommentSection = () => {
-  isCommentSectionOpen.value = false
 }
 
 const postTitle = computed(() => `Post Details`)
