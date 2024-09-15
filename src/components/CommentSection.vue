@@ -24,7 +24,7 @@
         <button v-if="isEditing" @click.prevent="cancelEdit" class="cancel-button">Cancel</button>
       </form>
 
-      <h3>{{ isReply ? 'Replies' : 'Comments' }}</h3>
+      <h3>{{ repliesHeaderText }}</h3>
       <div v-if="comments.length" class="comments-list">
         <template v-for="comment in comments.slice().reverse()" :key="comment.id">
           <div class="comment-card">
@@ -62,9 +62,13 @@
               />
             </div>
 
-            <!-- Toggle show/hide replies -->
+            <!-- Toggle show/hide replies with replies count -->
             <button class="show-replies-button" @click="toggleReplies(comment.id)">
-              {{ isRepliesVisible[comment.id] ? 'Hide Replies' : 'Show Replies' }}
+              {{
+                isRepliesVisible[comment.id]
+                  ? 'Hide Replies'
+                  : `Show Replies (${comment.children?.length || 0})`
+              }}
             </button>
 
             <!-- Show replies -->
@@ -86,10 +90,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import Swal from 'sweetalert2'
 import cancelIcon from '../assets/img/cancel-icon.svg'
-import type { Comment, User } from '../types/types.ts'
+import type { Comment } from '../types/types.ts'
 import axios from 'axios'
 
 const props = defineProps({
@@ -128,6 +132,14 @@ const userId = ref<number | null>(null)
 const isRepliesVisible = ref<Record<number, boolean>>({})
 const commentInputRefs = ref<Record<number, HTMLInputElement | null>>({})
 
+// Computed property for the replies header text
+const repliesHeaderText = computed(() => {
+  if (props.isReply) {
+    return props.comments.length ? 'Replies' : 'No Replies Yet'
+  }
+  return 'Comments'
+})
+
 const getAuthToken = () => {
   const token = localStorage.getItem('authToken')
   if (!token) {
@@ -144,13 +156,12 @@ const submitComment = async (parentId: number | null = null) => {
     const response = await axios.post<{ data: Comment }>(
       `https://interns-blog.nafistech.com/api/posts/${props.slug}/comments`,
       { content: commentContent.value, parent_id: parentId },
-      {
-        headers: { Authorization: `Bearer ${token}` }
-      }
+      { headers: { Authorization: `Bearer ${token}` } }
     )
 
     if (response.data.data) {
       const newComment = response.data.data
+      await nextTick() // Ensure DOM update
       emit('update-comments', [...props.comments, newComment])
       commentContent.value = ''
     } else {
@@ -253,8 +264,11 @@ const canDeleteComment = (comment: Comment) => {
 onMounted(() => {
   const storedUser = localStorage.getItem('user')
   if (storedUser) {
-    const user: User = JSON.parse(storedUser)
+    const user = JSON.parse(storedUser)
     userId.value = user.id
+    console.log('User ID retrieved:', userId.value) // Debugging log
+  } else {
+    console.error('No user data found in localStorage')
   }
 })
 </script>
@@ -262,7 +276,7 @@ onMounted(() => {
 <style scoped>
 .comment-section {
   padding: 20px;
-  background-color: #f5f5f5;
+  background-color: #d6d6d6;
   max-width: 600px;
   margin: 0 auto;
   border-radius: 8px;
@@ -298,13 +312,13 @@ onMounted(() => {
 input {
   width: 100%;
   padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  border: 1px solid #5267ff;
+  border-radius: 20px;
   outline: none;
 }
 
 input.highlight {
-  border-color: #4caf50;
+  border-color: #5267ff;
 }
 
 label {
@@ -316,19 +330,29 @@ label {
   pointer-events: none;
 }
 
-.add-comment-button,
-.cancel-button {
-  background-color: #4caf50;
-  color: white;
-  padding: 10px 15px;
+.add-comment-button {
+  background: linear-gradient(-135deg, #01c2cc, #7d2ae7);
   border: none;
-  border-radius: 4px;
+  border-radius: 25px;
+  color: white;
+  padding: 8px 12px;
   cursor: pointer;
   margin-right: 10px;
 }
 
 .cancel-button {
   background-color: #f44336;
+  border: none;
+  border-radius: 25px;
+  color: white;
+  padding: 8px 12px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+.vadd-comment-button:hover {
+  background: linear-gradient(-135deg, #7d2ae7, #01c2cc);
+  color: white;
 }
 
 .comments-list {
@@ -336,11 +360,11 @@ label {
 }
 
 .comment-card {
-  background-color: #fff;
+  background-color: #ffffff;
   padding: 15px;
   margin-bottom: 10px;
   border-radius: 6px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #5267ff;
 }
 
 .comment-card__header {
@@ -377,9 +401,15 @@ label {
 .show-replies-button {
   background: none;
   border: none;
-  color: #4caf50;
+  color: #5267ff;
   cursor: pointer;
-  padding: 5px;
+  padding: 0px;
+  margin-top: 15px;
+}
+
+.show-replies-button:hover {
+  text-decoration: underline;
+  color: #17216d;
 }
 
 .highlight-text {

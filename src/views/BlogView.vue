@@ -12,8 +12,8 @@
         <img
           v-if="isPostOwner(post.user.id)"
           @click.stop="openEditPostPopup"
-          width="18"
-          height="18"
+          width="21"
+          height="21"
           src="https://img.icons8.com/metro/26/000000/edit.png"
           alt="edit"
           class="edit-icon"
@@ -21,28 +21,35 @@
         <img
           v-if="isPostOwner(post.user.id)"
           @click.stop="deletePost(post.slug)"
-          width="21"
-          height="21"
+          width="26"
+          height="26"
           src="https://img.icons8.com/windows/32/000000/trash.png"
           alt="trash"
-          class="edit-icon"
+          class="delete-icon"
         />
         <img
-          @click="toggleCommentSection"
+          @click="toggleLikesListPopup"
           :src="commentIcon"
           alt="Comment Icon"
           class="comment-icon"
         />
+        <span class="comments-count" @click="toggleLikesListPopup">
+          {{ totalCommentsCount }}
+        </span>
       </div>
       <!-- Heart Icon for Likes -->
       <div class="likes">
         <span @click="toggleLike(post)" class="like-icon">
-          <i
-            :class="{
-              'fa-solid fa-heart': post.liked_by_user,
-              'fa-regular fa-heart': !post.liked_by_user
-            }"
-          ></i>
+          <img
+            :src="
+              post.liked_by_user
+                ? 'https://img.icons8.com/?size=100&id=yUGu5KXHNq3O&format=png&color=FF0000'
+                : 'https://img.icons8.com/ios/50/like--v1.png'
+            "
+            width="32"
+            height="32"
+            alt="like-icon"
+          />
         </span>
         <span class="like-count" @click.prevent="toggleLikesListPopup">
           {{ post.likes_count }}
@@ -193,6 +200,16 @@ const deletePost = async (slug: string) => {
   }
 }
 
+// Count all comments including replies recursively
+const totalCommentsCount = computed(() => {
+  const countComments = (comments: Comment[]): number => {
+    return comments.reduce((total, comment) => {
+      return total + 1 + (comment.children ? countComments(comment.children) : 0)
+    }, 0)
+  }
+  return post.value ? countComments(post.value.comments) : 0
+})
+
 const toggleLike = async (post: PostList) => {
   if (!post || !currentUser.value) return
 
@@ -239,10 +256,6 @@ const toggleLike = async (post: PostList) => {
   }
 }
 
-const toggleCommentSection = () => {
-  isCommentSectionOpen.value = !isCommentSectionOpen.value
-}
-
 const closeCommentSection = () => {
   isCommentSectionOpen.value = false
 }
@@ -269,7 +282,7 @@ onMounted(() => {
 .likes {
   margin-top: 15px;
   margin-bottom: 15px;
-  margin-left: 12px;
+  margin-left: 0px;
   display: flex;
   align-items: center;
 }
@@ -283,7 +296,7 @@ onMounted(() => {
 .like-icon i {
   font-size: 24px; /* Adjust size as needed */
   position: relative;
-  margin-right: 3px; /* Add space between icon and count */
+  margin-right: 0px; /* Add space between icon and count */
 }
 
 .like-icon i::before {
@@ -318,7 +331,7 @@ onMounted(() => {
   cursor: pointer;
   font-size: 16px; /* Adjust font size as needed */
   color: #333; /* Adjust text color as needed */
-  margin-left: 20px;
+  margin-left: 8px;
 }
 
 .header-container {
@@ -382,8 +395,22 @@ onMounted(() => {
 }
 
 .edit-icon {
-  margin-right: 10px;
+  margin-right: 25px;
   cursor: pointer;
+}
+
+.delete-icon {
+  margin-right: 25px;
+  cursor: pointer;
+  margin-bottom: 3px;
+}
+
+.edit-icon:hover {
+  transform: scale(1.1); /* Increase size on hover */
+}
+
+.delete-icon:hover {
+  transform: scale(1.1); /* Increase size on hover */
 }
 
 .comment-icon {
@@ -392,7 +419,8 @@ onMounted(() => {
 }
 
 .comments-count {
-  font-weight: bold;
+  cursor: pointer;
+
   color: black;
 }
 </style>

@@ -36,7 +36,9 @@
 
       <div class="article-card__content">
         <h3 class="article-card__title" @click="viewArticle(article.slug)">{{ article.title }}</h3>
-        <p class="article-card__text" @click="viewArticle(article.slug)">{{ article.content }}</p>
+        <p class="article-card__text" @click="viewArticle(article.slug)">
+          {{ truncateContent(article.content) }}
+        </p>
         <div class="user">
           <span class="material-symbols-outlined"> account_circle </span>
           <span class="article-card__author">{{ article.user.name }}</span>
@@ -73,16 +75,23 @@
             />
             <span class="comments-count">{{ article.comments_count }}</span>
           </div>
+          <!-- Heart Icon for Likes -->
           <div class="likes">
             <span @click="toggleLike(article)" class="like-icon">
-              <i
-                :class="{
-                  'fa-solid fa-heart': article.liked_by_user,
-                  'fa-regular fa-heart': !article.liked_by_user
-                }"
-              ></i>
+              <img
+                :src="
+                  article.liked_by_user
+                    ? 'https://img.icons8.com/?size=100&id=yUGu5KXHNq3O&format=png&color=FF0000'
+                    : 'https://img.icons8.com/ios/50/like--v1.png'
+                "
+                width="32"
+                height="32"
+                alt="like-icon"
+              />
             </span>
-            <span class="likes-count">{{ article.likes_count }}</span>
+            <span class="like-count">
+              {{ article.likes_count }}
+            </span>
           </div>
         </div>
       </div>
@@ -197,6 +206,14 @@ const fetchArticles = async (page: number = 1) => {
   } catch (error) {
     console.error('Error fetching articles:', error)
   }
+}
+
+const truncateContent = (content: string, wordLimit = 20) => {
+  const words = content.split(' ') // Split the content into an array of words
+  if (words.length > wordLimit) {
+    return words.slice(0, wordLimit).join(' ') + '...' // Join the first 80 words and add "..."
+  }
+  return content // Return the full content if it's less than 80 words
 }
 
 const viewArticle = (slug: string) => {
@@ -416,13 +433,24 @@ watch(sortOption, () => {
 }
 
 /* Style for individual icons */
-.edit-icon,
-.delete-icon,
-.comment-icon {
+.edit-icon {
   cursor: pointer;
-  margin-right: 10px; /* Space between icons */
+  margin-right: 20px; /* Space between icons */
   display: inline-flex; /* Ensures the icons are inline and aligned properly */
   align-items: center; /* Aligns the icons vertically */
+}
+
+.delete-icon {
+  cursor: pointer;
+  margin-right: 20px; /* Space between icons */
+  margin-top: 6px;
+  display: inline-flex; /* Ensures the icons are inline and aligned properly */
+  align-items: center; /* Aligns the icons vertically */
+  transition: transform 0.3s ease; /* Smooth transition */
+}
+
+.delete-icon:hover {
+  transform: scale(1.2); /* Increase size on hover */
 }
 
 .comments-count {
@@ -441,12 +469,13 @@ watch(sortOption, () => {
   cursor: pointer;
   color: red;
   font-size: 24px; /* Adjust size as needed */
-  margin-right: 8px; /* Space between icon and count */
+  margin-right: 6px; /* Space between icon and count */
 }
 
 .likes-count {
   font-size: 15px;
   color: #555;
+  margin-top: 500px;
 }
 
 .search-container {
