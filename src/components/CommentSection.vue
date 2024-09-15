@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isOpen" class="comment-section">
+  <div class="comment-section">
     <div class="comment-section-sidebar">
       <button class="close-button" @click="$emit('close')">
         <img :src="cancelIcon" alt="Cancel Icon" class="cancel-icon" />
@@ -11,18 +11,20 @@
             required
             v-model="commentContent"
             :class="{ highlight: isEditing }"
-            ref="commentInput"
+            ref="mainCommentInput"
+            :placeholder="isReply ? 'Reply' : 'Comment'"
           />
-          <label v-if="!isEditing">Comment</label>
         </div>
-        <button type="submit" class="add-comment-button" v-if="!isEditing">Add Comment</button>
+        <button type="submit" class="add-comment-button" v-if="!isEditing">
+          {{ isReply ? 'Add Reply' : 'Add Comment' }}
+        </button>
         <button v-if="isEditing" @click.prevent="updateComment" class="add-comment-button">
-          Update Comment
+          Update {{ isReply ? 'Reply' : 'Comment' }}
         </button>
         <button v-if="isEditing" @click.prevent="cancelEdit" class="cancel-button">Cancel</button>
       </form>
 
-      <h3>Comments</h3>
+      <h3>{{ isReply ? 'Replies' : 'Comments' }}</h3>
       <div v-if="comments.length" class="comments-list">
         <template v-for="comment in comments.slice().reverse()" :key="comment.id">
           <div class="comment-card">
@@ -42,7 +44,7 @@
             <div class="comment-card__actions">
               <img
                 v-if="canEditComment(comment)"
-                @click="startEdit(comment)"
+                @click="startEdit(comment, commentInputRefs[comment.id])"
                 width="18"
                 height="18"
                 src="https://img.icons8.com/metro/26/000000/edit.png"
@@ -60,19 +62,20 @@
               />
             </div>
 
+            <!-- Toggle show/hide replies -->
             <button class="show-replies-button" @click="toggleReplies(comment.id)">
               {{ isRepliesVisible[comment.id] ? 'Hide Replies' : 'Show Replies' }}
             </button>
 
-            <!-- Show replies recursively -->
+            <!-- Show replies -->
             <div v-if="isRepliesVisible[comment.id]" class="replies-section">
               <CommentSection
-                v-if="comment.children && comment.children.length"
                 :slug="slug"
                 :isOpen="true"
-                :comments="comment.children"
+                :comments="comment.children || []"
                 :postOwnerId="postOwnerId"
                 :parentId="comment.id"
+                isReply
               />
             </div>
           </div>
@@ -83,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import Swal from 'sweetalert2'
 import cancelIcon from '../assets/img/cancel-icon.svg'
 import type { Comment, User } from '../types/types.ts'
@@ -96,7 +99,7 @@ const props = defineProps({
   },
   isOpen: {
     type: Boolean,
-    required: true
+    default: true
   },
   comments: {
     type: Array as () => Comment[],
@@ -109,6 +112,10 @@ const props = defineProps({
   parentId: {
     type: Number,
     default: null
+  },
+  isReply: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -119,6 +126,7 @@ const isEditing = ref<boolean>(false)
 const editedCommentId = ref<number | null>(null)
 const userId = ref<number | null>(null)
 const isRepliesVisible = ref<Record<number, boolean>>({})
+const commentInputRefs = ref<Record<number, HTMLInputElement | null>>({})
 
 const getAuthToken = () => {
   const token = localStorage.getItem('authToken')
@@ -126,26 +134,6 @@ const getAuthToken = () => {
     console.error('No auth token found')
   }
   return token
-}
-
-const fetchUserInfo = async () => {
-  try {
-    const token = getAuthToken()
-    if (!token) return
-
-    const storedUser = localStorage.getItem('user')
-    if (storedUser) {
-      const user: User = JSON.parse(storedUser)
-      userId.value = user.id
-    } else {
-      const userResponse = await axios.get<User>('https://interns-blog.nafistech.com/api/user', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      userId.value = userResponse.data.id
-    }
-  } catch (error) {
-    console.error('Error fetching user info:', error)
-  }
 }
 
 const submitComment = async (parentId: number | null = null) => {
@@ -163,15 +151,7 @@ const submitComment = async (parentId: number | null = null) => {
 
     if (response.data.data) {
       const newComment = response.data.data
-
-      // Fetch user info to assign complete user object
-      const userResponse = await axios.get<User>('https://interns-blog.nafistech.com/api/user', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-
-      newComment.user = userResponse.data // Set the complete user object
-
-      emit('update-comments', [...props.comments, newComment]) // Emit updated comments
+      emit('update-comments', [...props.comments, newComment])
       commentContent.value = ''
     } else {
       console.error('Failed to add comment')
@@ -181,14 +161,19 @@ const submitComment = async (parentId: number | null = null) => {
   }
 }
 
-const startEdit = (comment: Comment) => {
+const toggleReplies = (commentId: number) => {
+  isRepliesVisible.value[commentId] = !isRepliesVisible.value[commentId]
+}
+
+const startEdit = (comment: Comment, inputRef: HTMLInputElement | null) => {
   isEditing.value = true
   editedCommentId.value = comment.id ?? null
   commentContent.value = comment.content
+
   nextTick(() => {
-    const inputElement = document.querySelector('input') as HTMLInputElement
-    inputElement?.scrollIntoView({ behavior: 'smooth' })
-    inputElement?.classList.add('highlight')
+    inputRef?.focus()
+    inputRef?.scrollIntoView({ behavior: 'smooth' })
+    inputRef?.classList.add('highlight')
   })
 }
 
@@ -215,14 +200,6 @@ const updateComment = async () => {
     commentContent.value = ''
     isEditing.value = false
     editedCommentId.value = null
-
-    nextTick(() => {
-      const updatedCommentElement = document.querySelector(
-        `.comment-card__text.highlight-text`
-      ) as HTMLElement
-      updatedCommentElement?.scrollIntoView({ behavior: 'smooth' })
-      updatedCommentElement?.classList.add('highlight')
-    })
   } catch (error) {
     console.error('Error updating comment:', error)
   }
@@ -266,36 +243,20 @@ const deleteComment = async (commentId: number) => {
 }
 
 const canEditComment = (comment: Comment) => {
-  return (
-    (props.postOwnerId === userId.value && comment.user?.id === userId.value) ||
-    (props.postOwnerId !== userId.value && comment.user?.id === userId.value)
-  )
+  return comment.user?.id === userId.value
 }
 
 const canDeleteComment = (comment: Comment) => {
-  return (
-    (props.postOwnerId === userId.value && comment.user?.id === userId.value) ||
-    (props.postOwnerId === userId.value && comment.user?.id !== userId.value) ||
-    (props.postOwnerId !== userId.value && comment.user?.id === userId.value)
-  )
+  return comment.user?.id === userId.value
 }
 
-const toggleReplies = (commentId: number) => {
-  isRepliesVisible.value[commentId] = !isRepliesVisible.value[commentId]
-}
-
-// Watch for changes in isEditing to focus on the input when editing a comment
-watch(isEditing, (newValue) => {
-  if (newValue) {
-    nextTick(() => {
-      const inputElement = document.querySelector('input') as HTMLInputElement
-      inputElement?.focus()
-    })
+onMounted(() => {
+  const storedUser = localStorage.getItem('user')
+  if (storedUser) {
+    const user: User = JSON.parse(storedUser)
+    userId.value = user.id
   }
 })
-
-// Fetch user info on mounted
-onMounted(fetchUserInfo)
 </script>
 
 <style scoped>
