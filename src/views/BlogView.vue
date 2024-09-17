@@ -82,6 +82,7 @@
       :slug="post ? post.slug : ''"
       :postOwnerId="post ? post.user.id : 0"
       :fetchPost="fetchPost"
+      :totalCommentsCount="totalCommentsCount"
     />
 
     <!-- LikesList Popup -->

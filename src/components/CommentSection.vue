@@ -67,18 +67,17 @@
                   : `Show Replies (${comment.children?.length || 0})`
               }}
             </button>
-
-            <!-- Show replies -->
-            <div v-if="isRepliesVisible[comment.id]" class="replies-section">
-              <CommentSection
-                :slug="slug"
-                :comments="comment.children || []"
-                :postOwnerId="postOwnerId"
-                :parentId="comment.id"
-                :isReply="true"
-                :fetchPost="fetchPost"
-              />
-            </div>
+          </div>
+          <!-- Show replies -->
+          <div v-if="isRepliesVisible[comment.id]" class="replies-section">
+            <CommentSection
+              :slug="slug"
+              :comments="comment.children || []"
+              :postOwnerId="postOwnerId"
+              :parentId="comment.id"
+              :isReply="true"
+              :fetchPost="fetchPost"
+            />
           </div>
         </template>
       </div>
@@ -118,6 +117,10 @@ const props = defineProps({
   fetchPost: {
     type: Function,
     required: true
+  },
+  totalCommentsCount: {
+    type: Number,
+    required: false
   }
 })
 
@@ -128,13 +131,11 @@ const userId = ref<number | null>(null)
 const isRepliesVisible = ref<Record<number, boolean>>({})
 const commentInputRefs = ref<Record<number, HTMLInputElement | null>>({})
 
-// Computed property for the replies header text
-// Computed property for the replies header text
 const repliesHeaderText = computed(() => {
   if (props.isReply) {
-    return props.comments.length ? 'Replies' : 'No Replies Yet'
+    return props.comments.length ? `Replies (${props.comments.length})` : 'No Replies Yet'
   }
-  return 'Comments'
+  return props.totalCommentsCount ? `Comments (${props.totalCommentsCount})` : 'No Comments Yet'
 })
 
 const getAuthToken = () => {
@@ -277,27 +278,30 @@ onMounted(() => {
 .comment-section {
   padding: 20px;
   background-color: #d6d6d6;
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
   border-radius: 8px;
+  width: 100%;
 }
 
 .comment-section-sidebar {
   position: relative;
 }
 
-.close-button {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: none;
-  border: none;
-  cursor: pointer;
+.replies-section {
+  border: 1px solid #ccc; /* Light gray border 5
+  border-radius: 8px; /* Slightly more rounded corners */
+  margin-top: 20px;
+  margin-bottom: 20px; /* Space between sections */
+  width: calc(100%); /* Expands the section outside the normal width */
+
+  box-shadow: 0px 4px 12px rgba(60, 151, 207, 0.6); /* Stronger shadow effect */
+  overflow: hidden; /* Prevents overflow of content */
 }
 
-.cancel-icon {
-  width: 20px;
-  height: 20px;
+.replies-section .replies-section {
+  width: 100%; /* Prevent shrinking for nested replies */
+  margin-left: 0; /* Remove the extra indentation */
 }
 
 .comment-form {
@@ -315,6 +319,7 @@ input {
   border: 1px solid #5267ff;
   border-radius: 20px;
   outline: none;
+  box-sizing: border-box;
 }
 
 input.highlight {
@@ -350,7 +355,7 @@ label {
   margin-right: 10px;
 }
 
-.vadd-comment-button:hover {
+.add-comment-button:hover {
   background: linear-gradient(-135deg, #7d2ae7, #01c2cc);
   color: white;
 }
@@ -365,6 +370,9 @@ label {
   margin-bottom: 10px;
   border-radius: 6px;
   border: 1px solid #5267ff;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .comment-card__header {
@@ -399,6 +407,7 @@ label {
 }
 
 .show-replies-button {
+  text-align: left;
   background: none;
   border: none;
   color: #5267ff;
