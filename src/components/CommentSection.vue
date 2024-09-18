@@ -1,90 +1,3 @@
-<template>
-  <div class="comment-section">
-    <div class="comment-section-sidebar">
-      <form @submit.prevent="submitComment(parentId)" class="comment-form">
-        <div class="field">
-          <input
-            type="text"
-            required
-            v-model="commentContent"
-            :class="{ highlight: isEditing }"
-            ref="mainCommentInput"
-            :placeholder="isReply ? 'Reply' : 'Comment'"
-          />
-        </div>
-        <button type="submit" class="add-comment-button" v-if="!isEditing">
-          {{ isReply ? 'Add Reply' : 'Add Comment' }}
-        </button>
-        <button v-if="isEditing" @click.prevent="updateComment" class="add-comment-button">
-          Update {{ isReply ? 'Reply' : 'Comment' }}
-        </button>
-        <button v-if="isEditing" @click.prevent="cancelEdit" class="cancel-button">Cancel</button>
-      </form>
-
-      <h3>{{ repliesHeaderText }}</h3>
-      <div v-if="comments.length" class="comments-list">
-        <template v-for="comment in comments.slice().reverse()" :key="comment.id">
-          <div class="comment-card">
-            <div class="comment-card__header">
-              <span class="material-symbols-outlined">account_circle</span>
-              <span class="comment-card__author">{{ comment.user?.name }}</span>
-            </div>
-            <div class="comment-card__content">
-              <p
-                :class="{ 'highlight-text': editedCommentId === comment.id }"
-                class="comment-card__text"
-              >
-                {{ comment.content }}
-              </p>
-            </div>
-
-            <div class="comment-card__actions">
-              <img
-                v-if="canEditComment(comment)"
-                @click="startEdit(comment, commentInputRefs[comment.id])"
-                width="18"
-                height="18"
-                src="https://img.icons8.com/metro/26/000000/edit.png"
-                alt="Edit Comment"
-                class="action-icon"
-              />
-              <img
-                v-if="canDeleteComment(comment)"
-                @click="deleteComment(comment.id)"
-                width="21"
-                height="21"
-                src="https://img.icons8.com/windows/32/000000/trash.png"
-                alt="Delete Comment"
-                class="action-icon"
-              />
-            </div>
-
-            <!-- Toggle show/hide replies with replies count -->
-            <button class="show-replies-button" @click="toggleReplies(comment.id)">
-              {{
-                isRepliesVisible[comment.id]
-                  ? 'Hide Replies'
-                  : `Show Replies (${comment.children?.length || 0})`
-              }}
-            </button>
-          </div>
-          <!-- Show replies -->
-          <div v-if="isRepliesVisible[comment.id]" class="replies-section">
-            <CommentSection
-              :slug="slug"
-              :comments="comment.children || []"
-              :postOwnerId="postOwnerId"
-              :parentId="comment.id"
-              :isReply="true"
-              :fetchPost="fetchPost"
-            />
-          </div>
-        </template>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from 'vue'
 import Swal from 'sweetalert2'
@@ -273,6 +186,93 @@ onMounted(() => {
   }
 })
 </script>
+
+<template>
+  <div class="comment-section">
+    <div class="comment-section-sidebar">
+      <form @submit.prevent="submitComment(parentId)" class="comment-form">
+        <div class="field">
+          <input
+            type="text"
+            required
+            v-model="commentContent"
+            :class="{ highlight: isEditing }"
+            ref="mainCommentInput"
+            :placeholder="isReply ? 'Reply' : 'Comment'"
+          />
+        </div>
+        <button type="submit" class="add-comment-button" v-if="!isEditing">
+          {{ isReply ? 'Add Reply' : 'Add Comment' }}
+        </button>
+        <button v-if="isEditing" @click.prevent="updateComment" class="add-comment-button">
+          Update {{ isReply ? 'Reply' : 'Comment' }}
+        </button>
+        <button v-if="isEditing" @click.prevent="cancelEdit" class="cancel-button">Cancel</button>
+      </form>
+
+      <h3>{{ repliesHeaderText }}</h3>
+      <div v-if="comments.length" class="comments-list">
+        <template v-for="comment in comments.slice().reverse()" :key="comment.id">
+          <div class="comment-card">
+            <div class="comment-card__header">
+              <span class="material-symbols-outlined">account_circle</span>
+              <span class="comment-card__author">{{ comment.user?.name }}</span>
+            </div>
+            <div class="comment-card__content">
+              <p
+                :class="{ 'highlight-text': editedCommentId === comment.id }"
+                class="comment-card__text"
+              >
+                {{ comment.content }}
+              </p>
+            </div>
+
+            <div class="comment-card__actions">
+              <img
+                v-if="canEditComment(comment)"
+                @click="startEdit(comment, commentInputRefs[comment.id])"
+                width="18"
+                height="18"
+                src="https://img.icons8.com/metro/26/000000/edit.png"
+                alt="Edit Comment"
+                class="action-icon"
+              />
+              <img
+                v-if="canDeleteComment(comment)"
+                @click="deleteComment(comment.id)"
+                width="21"
+                height="21"
+                src="https://img.icons8.com/windows/32/000000/trash.png"
+                alt="Delete Comment"
+                class="action-icon"
+              />
+            </div>
+
+            <!-- Toggle show/hide replies with replies count -->
+            <button class="show-replies-button" @click="toggleReplies(comment.id)">
+              {{
+                isRepliesVisible[comment.id]
+                  ? 'Hide Replies'
+                  : `Show Replies (${comment.children?.length || 0})`
+              }}
+            </button>
+          </div>
+          <!-- Show replies -->
+          <div v-if="isRepliesVisible[comment.id]" class="replies-section">
+            <CommentSection
+              :slug="slug"
+              :comments="comment.children || []"
+              :postOwnerId="postOwnerId"
+              :parentId="comment.id"
+              :isReply="true"
+              :fetchPost="fetchPost"
+            />
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</template>
 
 <style scoped>
 .comment-section {

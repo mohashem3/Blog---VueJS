@@ -55,7 +55,9 @@
         <img :src="post.image ? post.image : defaultImage" alt="Article Image" />
       </div>
       <div class="article-card__content">
-        <p class="article-card__text">{{ post.content }}</p>
+        <div class="scrollable-content">
+          <p class="article-card__text">{{ post.content }}</p>
+        </div>
         <div class="user">
           <span class="material-symbols-outlined"> account_circle </span>
           <span class="article-card__author">{{ post.user.name }}</span>
@@ -358,6 +360,39 @@ onMounted(() => {
 .article-card__text {
   font-size: 16px;
   margin: 0 0 10px 0;
+  white-space: pre-line; /* Preserve newlines, so the text is properly formatted */
+  line-height: 1.6; /* Adjust line-height for better readability */
+}
+
+.scrollable-content {
+  max-height: 300px; /* Set the maximum height for the content */
+  overflow-y: auto; /* Add vertical scroll if content exceeds max height */
+  padding: 15px; /* Add padding around the content */
+  /*border: 1px solid #d9d9df;*/
+  border-radius: 8px; /* Rounded corners */
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1); /* Add subtle shadow */
+  background-color: #f9f9f9; /* Light background color */
+  margin-bottom: 15px;
+}
+
+/* Custom scrollbar styling */
+.scrollable-content::-webkit-scrollbar {
+  width: 10px; /* Set scrollbar width */
+}
+
+.scrollable-content::-webkit-scrollbar-track {
+  background: #e4e4e4; /* Background color of the scrollbar track */
+  border-radius: 10px; /* Rounded corners for the track */
+}
+
+.scrollable-content::-webkit-scrollbar-thumb {
+  background-color: #9292af; /* Scrollbar thumb color */
+  border-radius: 10px; /* Rounded scrollbar thumb */
+  border: 2px solid #e4e4e4; /* Padding inside the scrollbar thumb */
+}
+
+.scrollable-content::-webkit-scrollbar-thumb:hover {
+  background-color: #1e90ff; /* Change thumb color on hover */
 }
 
 .user {
