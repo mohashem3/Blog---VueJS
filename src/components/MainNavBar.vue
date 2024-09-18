@@ -74,6 +74,12 @@ onBeforeUnmount(() => {
               >ABOUT</router-link
             >
           </li>
+
+          <li class="nav-item">
+            <router-link to="/profile" class="nav-link" exact-active-class="active"
+              >PROFILE</router-link
+            >
+          </li>
         </ul>
       </div>
 

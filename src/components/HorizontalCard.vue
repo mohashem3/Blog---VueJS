@@ -1,124 +1,3 @@
-<template>
-  <div class="container">
-    <!-- Header and Buttons -->
-    <div class="header-container">
-      <h2 class="header">{{ latestPostsTitle }}</h2>
-    </div>
-
-    <div class="header-container">
-      <!-- Sorting Dropdown -->
-      <div class="sort-container">
-        <label for="sort-order">Sort by:</label>
-        <select v-model="sortOption" @change="handleSortChange">
-          <option value="latest">Latest</option>
-          <option value="oldest">Oldest</option>
-        </select>
-      </div>
-
-      <input
-        v-model="searchTerm"
-        type="text"
-        placeholder="Search articles..."
-        class="search-input"
-      />
-
-      <button class="new-post-button" @click="openAddPostPopup">
-        <img :src="addIcon" alt="Add Post Icon" class="button-icon" />
-        New Post
-      </button>
-    </div>
-
-    <!-- Article Cards -->
-    <div v-for="article in filteredArticles" :key="article.slug" class="article-card">
-      <div class="article-card__img" @click="viewArticle(article.slug)">
-        <img :src="article.image ? article.image : defaultImage" alt="Article Image" />
-      </div>
-
-      <div class="article-card__content">
-        <h3 class="article-card__title" @click="viewArticle(article.slug)">{{ article.title }}</h3>
-        <p class="article-card__text" @click="viewArticle(article.slug)">
-          {{ truncateContent(article.content) }}
-        </p>
-        <div class="user">
-          <span class="material-symbols-outlined"> account_circle </span>
-          <span class="article-card__author">{{ article.user.name }}</span>
-        </div>
-        <div class="view-more">
-          <button @click="viewArticle(article.slug)" class="view-more-button">View More</button>
-        </div>
-        <div class="post-actions">
-          <div class="edit-delete-comment">
-            <img
-              v-if="isPostOwner(article.user.id)"
-              @click.stop="openEditPostPopup(article.slug)"
-              width="18"
-              height="18"
-              src="https://img.icons8.com/metro/26/000000/edit.png"
-              alt="edit"
-              class="edit-icon"
-            />
-            <img
-              v-if="isPostOwner(article.user.id)"
-              @click.stop="deletePost(article.slug)"
-              width="18"
-              height="18"
-              src="https://img.icons8.com/metro/26/000000/delete.png"
-              alt="delete"
-              class="delete-icon"
-            />
-            <img
-              :src="commentIcon"
-              alt="Comment Icon"
-              class="comment-icon"
-              width="20"
-              height="20"
-            />
-            <span class="comments-count">{{ article.comments_count }}</span>
-          </div>
-          <!-- Heart Icon for Likes -->
-          <div class="likes">
-            <span @click="toggleLike(article)" class="like-icon">
-              <img
-                :src="
-                  article.liked_by_user
-                    ? 'https://img.icons8.com/?size=100&id=yUGu5KXHNq3O&format=png&color=FF0000'
-                    : 'https://img.icons8.com/ios/50/like--v1.png'
-                "
-                width="32"
-                height="32"
-                alt="like-icon"
-              />
-            </span>
-            <span class="like-count">
-              {{ article.likes_count }}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Pagination Controls -->
-    <div class="pagination">
-      <button
-        v-for="page in pagination.pages"
-        :key="page.label"
-        @click="changePage(page.url?.split('page=')[1])"
-        v-html="page.label"
-        :class="{ active: page.active }"
-        :disabled="page.active"
-      ></button>
-    </div>
-
-    <!-- Add Post Form Popup -->
-    <AddPost
-      :showPopup="showAddPostPopup"
-      :postData="currentPost"
-      @update:showPopup="showAddPostPopup = false"
-      @post-added="handlePostAdded"
-    />
-  </div>
-</template>
-
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import axios from 'axios'
@@ -331,6 +210,127 @@ watch(sortOption, () => {
   fetchArticles(pagination.value.currentPage)
 })
 </script>
+
+<template>
+  <div class="container">
+    <!-- Header and Buttons -->
+    <div class="header-container">
+      <h2 class="header">{{ latestPostsTitle }}</h2>
+    </div>
+
+    <div class="header-container">
+      <!-- Sorting Dropdown -->
+      <div class="sort-container">
+        <label for="sort-order">Sort by:</label>
+        <select v-model="sortOption" @change="handleSortChange">
+          <option value="latest">Latest</option>
+          <option value="oldest">Oldest</option>
+        </select>
+      </div>
+
+      <input
+        v-model="searchTerm"
+        type="text"
+        placeholder="Search articles..."
+        class="search-input"
+      />
+
+      <button class="new-post-button" @click="openAddPostPopup">
+        <img :src="addIcon" alt="Add Post Icon" class="button-icon" />
+        New Post
+      </button>
+    </div>
+
+    <!-- Article Cards -->
+    <div v-for="article in filteredArticles" :key="article.slug" class="article-card">
+      <div class="article-card__img" @click="viewArticle(article.slug)">
+        <img :src="article.image ? article.image : defaultImage" alt="Article Image" />
+      </div>
+
+      <div class="article-card__content">
+        <h3 class="article-card__title" @click="viewArticle(article.slug)">{{ article.title }}</h3>
+        <p class="article-card__text" @click="viewArticle(article.slug)">
+          {{ truncateContent(article.content) }}
+        </p>
+        <div class="user">
+          <span class="material-symbols-outlined"> account_circle </span>
+          <span class="article-card__author">{{ article.user.name }}</span>
+        </div>
+        <div class="view-more">
+          <button @click="viewArticle(article.slug)" class="view-more-button">View More</button>
+        </div>
+        <div class="post-actions">
+          <div class="edit-delete-comment">
+            <img
+              v-if="isPostOwner(article.user.id)"
+              @click.stop="openEditPostPopup(article.slug)"
+              width="18"
+              height="18"
+              src="https://img.icons8.com/metro/26/000000/edit.png"
+              alt="edit"
+              class="edit-icon"
+            />
+            <img
+              v-if="isPostOwner(article.user.id)"
+              @click.stop="deletePost(article.slug)"
+              width="18"
+              height="18"
+              src="https://img.icons8.com/metro/26/000000/delete.png"
+              alt="delete"
+              class="delete-icon"
+            />
+            <img
+              :src="commentIcon"
+              alt="Comment Icon"
+              class="comment-icon"
+              width="20"
+              height="20"
+            />
+            <span class="comments-count">{{ article.comments_count }}</span>
+          </div>
+          <!-- Heart Icon for Likes -->
+          <div class="likes">
+            <span @click="toggleLike(article)" class="like-icon">
+              <img
+                :src="
+                  article.liked_by_user
+                    ? 'https://img.icons8.com/?size=100&id=yUGu5KXHNq3O&format=png&color=FF0000'
+                    : 'https://img.icons8.com/ios/50/like--v1.png'
+                "
+                width="32"
+                height="32"
+                alt="like-icon"
+              />
+            </span>
+            <span class="like-count">
+              {{ article.likes_count }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination">
+      <button
+        v-for="page in pagination.pages"
+        :key="page.label"
+        @click="changePage(page.url?.split('page=')[1])"
+        v-html="page.label"
+        :class="{ active: page.active }"
+        :disabled="page.active"
+      ></button>
+    </div>
+
+    <!-- Add Post Form Popup -->
+    <AddPost
+      :showPopup="showAddPostPopup"
+      :postData="currentPost"
+      @update:showPopup="showAddPostPopup = false"
+      @post-added="handlePostAdded"
+    />
+  </div>
+</template>
 
 <style scoped>
 .header-container {

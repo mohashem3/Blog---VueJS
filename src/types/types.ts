@@ -27,6 +27,21 @@ export interface Comment {
   user: User // Optional when creating a comment
   children?: Comment[] // Optional when creating a comment
   parent_id?: number // Optional when creating a comment
+  post: {
+    // Add this block for the post reference
+    id: number
+    slug: string
+    title: string
+    content: string
+    comments_count: number
+    created_at: string
+    created_at_readable: string
+    updated_at: string
+    updated_at_readable: string
+    image: string
+    image_thumb: string
+    user: User
+  }
 }
 
 export interface Like {

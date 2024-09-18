@@ -59,6 +59,33 @@ const getAuthToken = () => {
   return token
 }
 
+// const submitComment = async (parentId: number | null = null) => {
+//   try {
+//     const token = getAuthToken()
+//     if (!token) return
+
+//     const response = await axios.post<{ data: Comment }>(
+//       `https://interns-blog.nafistech.com/api/posts/${props.slug}/comments`,
+//       { content: commentContent.value, parent_id: parentId },
+//       { headers: { Authorization: `Bearer ${token}` } }
+//     )
+
+//     if (response.data.data) {
+//       await nextTick() // Ensure DOM update
+
+//       commentContent.value = ''
+//       // Call fetchPost from prop
+//       if (props.fetchPost) {
+//         props.fetchPost()
+//       }
+//     } else {
+//       console.error('Failed to add comment')
+//     }
+//   } catch (error) {
+//     console.error('Error submitting comment:', error)
+//   }
+// }
+
 const submitComment = async (parentId: number | null = null) => {
   try {
     const token = getAuthToken()
@@ -74,7 +101,6 @@ const submitComment = async (parentId: number | null = null) => {
       await nextTick() // Ensure DOM update
 
       commentContent.value = ''
-      // Call fetchPost from prop
       if (props.fetchPost) {
         props.fetchPost()
       }
