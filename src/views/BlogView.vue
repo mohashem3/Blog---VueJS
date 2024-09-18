@@ -397,12 +397,9 @@ onMounted(() => {
 
 .comment-icon {
   margin-right: 10px;
-  cursor: pointer;
 }
 
 .comments-count {
-  cursor: pointer;
-
   color: black;
 }
 </style>
