@@ -27,13 +27,8 @@
           alt="trash"
           class="delete-icon"
         />
-        <img
-          @click="toggleLikesListPopup"
-          :src="commentIcon"
-          alt="Comment Icon"
-          class="comment-icon"
-        />
-        <span class="comments-count" @click="toggleLikesListPopup">
+        <img :src="commentIcon" alt="Comment Icon" class="comment-icon" />
+        <span class="comments-count">
           {{ totalCommentsCount }}
         </span>
       </div>
